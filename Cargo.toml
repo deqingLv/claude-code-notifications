@@ -1,0 +1,31 @@
+[package]
+name = "claude-code-notifications"
+version = "0.1.0"
+description = "Claude Code hook for cross-platform desktop notifications"
+authors = ["Claude Code User"]
+edition = "2021"
+license = "MIT"
+repository = ""
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+notify-rust = "4.10.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+shellexpand = "3.0"
+
+[dev-dependencies]
+tempfile = "3.0"
+
+# Optimized release build configuration
+[profile.release]
+opt-level = 3         # Maximum optimization
+lto = true           # Link-time optimization for smaller binaries
+codegen-units = 1    # Single compilation unit for better optimization
+panic = "abort"      # Smaller binaries by avoiding unwind handling
+strip = true         # Remove debug symbols from release builds
