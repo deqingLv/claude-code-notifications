@@ -6,8 +6,7 @@
 
 use clap::Parser;
 use claude_code_notifications::{
-    parse_input, handle_hook, ChannelManager, NotificationError, get_config_path,
-    start_web_server
+    get_config_path, handle_hook, parse_input, start_web_server, ChannelManager, NotificationError,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -218,9 +217,7 @@ fn init_command(args: InitArgs) -> Result<(), NotificationError> {
 
     // Read existing configuration or create new
     let mut config: serde_json::Value = if config_path.exists() {
-        let content = fs::read_to_string(&config_path).map_err(|e| {
-            NotificationError::IoError(e)
-        })?;
+        let content = fs::read_to_string(&config_path).map_err(NotificationError::IoError)?;
         serde_json::from_str(&content).map_err(|e| {
             NotificationError::InvalidInput(format!("Invalid JSON in config file: {}", e))
         })?
@@ -231,7 +228,7 @@ fn init_command(args: InitArgs) -> Result<(), NotificationError> {
     // Ensure hooks object exists
     if !config.is_object() {
         return Err(NotificationError::InvalidInput(
-            "Configuration must be a JSON object".to_string()
+            "Configuration must be a JSON object".to_string(),
         ));
     }
 
@@ -242,9 +239,13 @@ fn init_command(args: InitArgs) -> Result<(), NotificationError> {
         config_obj.insert("hooks".to_string(), serde_json::json!({}));
     }
 
-    let hooks = config_obj.get_mut("hooks").unwrap().as_object_mut().ok_or_else(|| {
-        NotificationError::InvalidInput("hooks must be a JSON object".to_string())
-    })?;
+    let hooks = config_obj
+        .get_mut("hooks")
+        .unwrap()
+        .as_object_mut()
+        .ok_or_else(|| {
+            NotificationError::InvalidInput("hooks must be a JSON object".to_string())
+        })?;
 
     // Build command with sound parameter
     let command = if args.sound.is_empty() {
@@ -266,10 +267,16 @@ fn init_command(args: InitArgs) -> Result<(), NotificationError> {
         // Check if hook already exists
         if hooks.contains_key(hook_type_name) {
             if !args.force {
-                println!("{} hook already exists in config file. Skipping...", hook_type_name);
+                println!(
+                    "{} hook already exists in config file. Skipping...",
+                    hook_type_name
+                );
                 continue;
             }
-            println!("Overwriting existing {} hook configuration...", hook_type_name);
+            println!(
+                "Overwriting existing {} hook configuration...",
+                hook_type_name
+            );
         }
 
         // Determine matcher based on hook type
@@ -303,9 +310,7 @@ fn init_command(args: InitArgs) -> Result<(), NotificationError> {
 
     // Create parent directories if needed
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| {
-            NotificationError::IoError(e)
-        })?;
+        fs::create_dir_all(parent).map_err(NotificationError::IoError)?;
     }
 
     // Write updated configuration back to file
@@ -313,14 +318,18 @@ fn init_command(args: InitArgs) -> Result<(), NotificationError> {
         NotificationError::InvalidInput(format!("Failed to serialize config: {}", e))
     })?;
 
-    fs::write(&config_path, updated_content).map_err(|e| {
-        NotificationError::IoError(e)
-    })?;
+    fs::write(&config_path, updated_content).map_err(NotificationError::IoError)?;
 
     println!("Successfully configured Claude Code hooks!");
     println!("Configured hooks: {}", configured_hooks.join(", "));
-    println!("Sound: {}",
-             if args.sound.is_empty() { "none (disabled)" } else { &args.sound });
+    println!(
+        "Sound: {}",
+        if args.sound.is_empty() {
+            "none (disabled)"
+        } else {
+            &args.sound
+        }
+    );
     if args.hook_type.contains(&HookType::PreToolUse) {
         println!("PreToolUse matcher: {}", args.pre_tool_use_matcher);
     }
@@ -361,7 +370,8 @@ mod tests {
     #[test]
     fn test_run_with_sound() {
         // Test parsing CLI arguments with sound parameter
-        let cli = Cli::try_parse_from(["claude-code-notifications", "run", "--sound", "Glass"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["claude-code-notifications", "run", "--sound", "Glass"]).unwrap();
         match cli.command {
             Some(Commands::Run(run_args)) => assert_eq!(run_args.sound, "Glass"),
             _ => panic!("Expected Run command"),
@@ -389,7 +399,9 @@ mod tests {
         ])
         .unwrap();
         match cli.command {
-            Some(Commands::Run(run_args)) => assert_eq!(run_args.sound, "./assets/notification.wav"),
+            Some(Commands::Run(run_args)) => {
+                assert_eq!(run_args.sound, "./assets/notification.wav")
+            }
             _ => panic!("Expected Run command"),
         }
     }

@@ -4,7 +4,6 @@
 //! using simple {{variable}} syntax.
 
 use crate::config::schema::MessageTemplate;
-use crate::error::NotificationError;
 use crate::hooks::{HookData, HookInput, HookType};
 use std::collections::HashMap;
 
@@ -30,7 +29,11 @@ impl TemplateEngine {
     }
 
     /// Get the appropriate template for a hook type
-    pub fn get_template(&self, hook_type: &HookType, channel_template: Option<&MessageTemplate>) -> MessageTemplate {
+    pub fn get_template(
+        &self,
+        hook_type: &HookType,
+        channel_template: Option<&MessageTemplate>,
+    ) -> MessageTemplate {
         // Prefer channel-specific template
         if let Some(template) = channel_template {
             return template.clone();
@@ -70,7 +73,11 @@ impl TemplateEngine {
             HookData::PreToolUse(data) => {
                 ctx.insert("tool_name".to_string(), data.tool_name.clone());
                 // Add 'message' for compatibility with default templates
-                let message = data.context.as_deref().unwrap_or(&data.tool_name).to_string();
+                let message = data
+                    .context
+                    .as_deref()
+                    .unwrap_or(&data.tool_name)
+                    .to_string();
                 ctx.insert("message".to_string(), message);
                 if let Some(context) = &data.context {
                     ctx.insert("context".to_string(), context.clone());
@@ -78,7 +85,11 @@ impl TemplateEngine {
             }
             HookData::Stop(data) => {
                 // Add both 'message' and 'reason' for compatibility
-                let message = data.reason.as_deref().unwrap_or("Claude stopped generating").to_string();
+                let message = data
+                    .reason
+                    .as_deref()
+                    .unwrap_or("Claude stopped generating")
+                    .to_string();
                 ctx.insert("message".to_string(), message.clone());
                 if let Some(reason) = &data.reason {
                     ctx.insert("reason".to_string(), reason.clone());
@@ -101,6 +112,20 @@ impl TemplateEngine {
                 }
                 if let Some(reason) = &data.reason {
                     ctx.insert("reason".to_string(), reason.clone());
+                }
+            }
+            HookData::PermissionRequest(data) => {
+                let message = if let Some(tool_name) = &data.tool_name {
+                    format!("Claude requests permission to use {}", tool_name)
+                } else {
+                    "Claude requests permission to execute a tool".to_string()
+                };
+                ctx.insert("message".to_string(), message);
+                if let Some(tool_name) = &data.tool_name {
+                    ctx.insert("tool_name".to_string(), tool_name.clone());
+                }
+                if let Some(context) = &data.context {
+                    ctx.insert("context".to_string(), context.clone());
                 }
             }
         }
@@ -197,12 +222,8 @@ mod tests {
         let global_templates = HashMap::new();
         let engine = TemplateEngine::new(global_templates);
 
-        let input = HookInput::notification(
-            "test-session".to_string(),
-            None,
-            "Test".to_string(),
-            None,
-        );
+        let input =
+            HookInput::notification("test-session".to_string(), None, "Test".to_string(), None);
 
         let template = MessageTemplate {
             title: Some("{{hook_type}} - {{missing_var}}".to_string()),

@@ -3,16 +3,20 @@
 //! This module provides an Actix-web server with HTTP handlers for
 //! configuration management and channel testing.
 
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use actix_files as fs;
+use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use crate::config::AppConfig;
 use crate::channels::r#trait::NotificationChannel;
+use crate::config::AppConfig;
 
 /// Start the web server on the specified port
-pub async fn start_web_server(config_path: PathBuf, port: u16, open_browser: bool) -> std::io::Result<()> {
+pub async fn start_web_server(
+    config_path: PathBuf,
+    port: u16,
+    open_browser: bool,
+) -> std::io::Result<()> {
     let config_data = web::Data::new(Mutex::new(config_path));
 
     println!("🚀 Starting Claude Code Notifications Web UI...");
@@ -136,7 +140,9 @@ async fn api_test_channel(
             use crate::channels::SystemChannel;
             let channel = SystemChannel::new();
             tokio::task::spawn_blocking(move || {
-                tokio::runtime::Runtime::new().unwrap().block_on(channel.test(&channel_config))
+                tokio::runtime::Runtime::new()
+                    .unwrap()
+                    .block_on(channel.test(&channel_config))
             })
             .await
             .unwrap()
@@ -189,11 +195,9 @@ async fn api_list_channels() -> impl Responder {
 
 // Helper functions to avoid module import issues
 fn load_config_from_path(path: &PathBuf) -> Result<AppConfig, String> {
-    crate::config::load_config_from_path(path)
-        .map_err(|e| e.to_string())
+    crate::config::load_config_from_path(path).map_err(|e| e.to_string())
 }
 
 fn save_config_to_path(config: &AppConfig, path: &PathBuf) -> Result<(), String> {
-    crate::config::save_config_to_path(config, path)
-        .map_err(|e| e.to_string())
+    crate::config::save_config_to_path(config, path).map_err(|e| e.to_string())
 }

@@ -2,6 +2,7 @@
 //!
 //! This module implements the NotificationChannel trait for Feishu/Lark webhooks,
 //! supporting text, post, and other message types.
+#![allow(unused_imports)]
 
 use async_trait::async_trait;
 use serde::Serialize;
@@ -10,7 +11,7 @@ use std::collections::HashMap;
 use crate::channels::r#trait::NotificationChannel;
 use crate::channels::webhook::WebhookClient;
 use crate::config::{ChannelConfig, MessageTemplate, TemplateEngine};
-use crate::error::{ChannelError, NotificationError};
+use crate::error::ChannelError;
 use crate::hooks::HookInput;
 
 /// Feishu/Lark webhook notification channel
@@ -26,10 +27,15 @@ impl FeishuChannel {
     }
 
     /// Build Feishu message from hook input and configuration
-    fn build_message(&self, input: &HookInput, config: &ChannelConfig) -> Result<FeishuMessage, ChannelError> {
+    fn build_message(
+        &self,
+        input: &HookInput,
+        config: &ChannelConfig,
+    ) -> Result<FeishuMessage, ChannelError> {
         // Use template engine to render message
         let template_engine = TemplateEngine::new(HashMap::new());
-        let template = template_engine.get_template(&input.hook_type, config.message_template.as_ref());
+        let template =
+            template_engine.get_template(&input.hook_type, config.message_template.as_ref());
         let rendered = template_engine.render(&template, input);
 
         Ok(FeishuMessage {
@@ -97,7 +103,8 @@ impl NotificationChannel for FeishuChannel {
         let url = config.webhook_url.as_ref().unwrap();
         let message = self.build_message(&test_input, config)?;
 
-        let response: crate::channels::webhook::WebhookResponse = self.client.send(url, &message).await?;
+        let response: crate::channels::webhook::WebhookResponse =
+            self.client.send(url, &message).await?;
         if response.is_success() {
             Ok("Feishu webhook test successful".to_string())
         } else {

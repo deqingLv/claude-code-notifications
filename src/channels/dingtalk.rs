@@ -2,18 +2,19 @@
 //!
 //! This module implements the NotificationChannel trait for DingTalk webhooks,
 //! supporting text messages and optional webhook signing with secret.
+#![allow(unused_imports)]
 
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
-use sha2::Sha256;
 use serde::Serialize;
+use sha2::Sha256;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::channels::r#trait::NotificationChannel;
 use crate::channels::webhook::WebhookClient;
 use crate::config::{ChannelConfig, MessageTemplate, TemplateEngine};
-use crate::error::{ChannelError, NotificationError};
+use crate::error::ChannelError;
 use crate::hooks::HookInput;
 
 /// DingTalk webhook notification channel
@@ -42,14 +43,19 @@ impl DingTalkChannel {
         let code = result.into_bytes();
 
         use base64::Engine;
-        base64::engine::general_purpose::STANDARD.encode(&code)
+        base64::engine::general_purpose::STANDARD.encode(code)
     }
 
     /// Build DingTalk message from hook input and configuration
-    fn build_message(&self, input: &HookInput, config: &ChannelConfig) -> Result<DingTalkMessage, ChannelError> {
+    fn build_message(
+        &self,
+        input: &HookInput,
+        config: &ChannelConfig,
+    ) -> Result<DingTalkMessage, ChannelError> {
         // Use template engine to render message
         let template_engine = TemplateEngine::new(HashMap::new());
-        let template = template_engine.get_template(&input.hook_type, config.message_template.as_ref());
+        let template =
+            template_engine.get_template(&input.hook_type, config.message_template.as_ref());
         let rendered = template_engine.render(&template, input);
 
         Ok(DingTalkMessage {
@@ -152,7 +158,8 @@ impl NotificationChannel for DingTalkChannel {
             webhook_url.clone()
         };
 
-        let response: crate::channels::webhook::WebhookResponse = self.client.send(&url, &message).await?;
+        let response: crate::channels::webhook::WebhookResponse =
+            self.client.send(&url, &message).await?;
         if response.is_success() {
             Ok("DingTalk webhook test successful".to_string())
         } else {

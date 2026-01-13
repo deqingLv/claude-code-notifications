@@ -3,19 +3,19 @@
 //! This module provides implementations of various notification channels
 //! including system notifications, WeChat, Feishu, and DingTalk.
 
-pub mod r#trait;
+pub mod dingtalk;
+pub mod feishu;
 pub mod system;
+pub mod r#trait;
 pub mod webhook;
 pub mod wechat;
-pub mod feishu;
-pub mod dingtalk;
 
-pub use r#trait::{NotificationChannel, ChannelResult, map_channel_error};
+pub use dingtalk::DingTalkChannel;
+pub use feishu::FeishuChannel;
+pub use r#trait::{map_channel_error, ChannelResult, NotificationChannel};
 pub use system::SystemChannel;
 pub use webhook::WebhookClient;
 pub use wechat::WeChatChannel;
-pub use feishu::FeishuChannel;
-pub use dingtalk::DingTalkChannel;
 
 use std::collections::HashMap;
 
@@ -35,10 +35,30 @@ impl ChannelRegistry {
         };
 
         // Register built-in channels
-        registry.register_factory("system", Box::new(|| Box::new(SystemChannel::new()) as Box<dyn NotificationChannel + Send + Sync>));
-        registry.register_factory("wechat", Box::new(|| Box::new(WeChatChannel::new()) as Box<dyn NotificationChannel + Send + Sync>));
-        registry.register_factory("feishu", Box::new(|| Box::new(FeishuChannel::new()) as Box<dyn NotificationChannel + Send + Sync>));
-        registry.register_factory("dingtalk", Box::new(|| Box::new(DingTalkChannel::new()) as Box<dyn NotificationChannel + Send + Sync>));
+        registry.register_factory(
+            "system",
+            Box::new(|| {
+                Box::new(SystemChannel::new()) as Box<dyn NotificationChannel + Send + Sync>
+            }),
+        );
+        registry.register_factory(
+            "wechat",
+            Box::new(|| {
+                Box::new(WeChatChannel::new()) as Box<dyn NotificationChannel + Send + Sync>
+            }),
+        );
+        registry.register_factory(
+            "feishu",
+            Box::new(|| {
+                Box::new(FeishuChannel::new()) as Box<dyn NotificationChannel + Send + Sync>
+            }),
+        );
+        registry.register_factory(
+            "dingtalk",
+            Box::new(|| {
+                Box::new(DingTalkChannel::new()) as Box<dyn NotificationChannel + Send + Sync>
+            }),
+        );
 
         registry
     }
@@ -48,11 +68,15 @@ impl ChannelRegistry {
     where
         F: Fn() -> Box<dyn NotificationChannel + Send + Sync> + Send + Sync + 'static,
     {
-        self.factories.insert(channel_type.to_string(), Box::new(factory));
+        self.factories
+            .insert(channel_type.to_string(), Box::new(factory));
     }
 
     /// Create a channel instance by type
-    pub fn create_channel(&self, channel_type: &str) -> Option<Box<dyn NotificationChannel + Send + Sync>> {
+    pub fn create_channel(
+        &self,
+        channel_type: &str,
+    ) -> Option<Box<dyn NotificationChannel + Send + Sync>> {
         self.factories.get(channel_type).map(|factory| factory())
     }
 

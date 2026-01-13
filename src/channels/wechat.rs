@@ -2,6 +2,7 @@
 //!
 //! This module implements the NotificationChannel trait for WeChat Work (企业微信)
 //! webhooks, supporting text messages and mentioned users.
+#![allow(unused_imports)]
 
 use async_trait::async_trait;
 use serde::Serialize;
@@ -10,7 +11,7 @@ use std::collections::HashMap;
 use crate::channels::r#trait::NotificationChannel;
 use crate::channels::webhook::WebhookClient;
 use crate::config::{ChannelConfig, MessageTemplate, TemplateEngine};
-use crate::error::{ChannelError, NotificationError};
+use crate::error::ChannelError;
 use crate::hooks::HookInput;
 
 /// WeChat Work webhook notification channel
@@ -26,10 +27,15 @@ impl WeChatChannel {
     }
 
     /// Build WeChat message from hook input and configuration
-    fn build_message(&self, input: &HookInput, config: &ChannelConfig) -> Result<WeChatMessage, ChannelError> {
+    fn build_message(
+        &self,
+        input: &HookInput,
+        config: &ChannelConfig,
+    ) -> Result<WeChatMessage, ChannelError> {
         // Use template engine to render message
         let template_engine = TemplateEngine::new(HashMap::new());
-        let template = template_engine.get_template(&input.hook_type, config.message_template.as_ref());
+        let template =
+            template_engine.get_template(&input.hook_type, config.message_template.as_ref());
         let rendered = template_engine.render(&template, input);
 
         // Get mentioned_list from template if available
@@ -105,7 +111,8 @@ impl NotificationChannel for WeChatChannel {
         let url = config.webhook_url.as_ref().unwrap();
         let message = self.build_message(&test_input, config)?;
 
-        let response: crate::channels::webhook::WebhookResponse = self.client.send(url, &message).await?;
+        let response: crate::channels::webhook::WebhookResponse =
+            self.client.send(url, &message).await?;
         if response.is_success() {
             Ok("WeChat Work webhook test successful".to_string())
         } else {
@@ -150,7 +157,9 @@ mod tests {
 
         let config_valid = ChannelConfig {
             enabled: true,
-            webhook_url: Some("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test".to_string()),
+            webhook_url: Some(
+                "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test".to_string(),
+            ),
             ..Default::default()
         };
         assert!(channel.validate_config(&config_valid).is_ok());

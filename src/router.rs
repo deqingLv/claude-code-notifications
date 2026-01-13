@@ -6,7 +6,7 @@
 
 use crate::config::{AppConfig, RoutingRule};
 use crate::error::{NotificationError, Result};
-use crate::hooks::{HookData, HookInput, HookType};
+use crate::hooks::{HookData, HookInput};
 use regex::Regex;
 use std::collections::HashSet;
 
@@ -27,11 +27,7 @@ impl ChannelRouter {
     ///
     /// Returns a list of channel IDs based on matching routing rules.
     /// If no rules match, returns the default channels from configuration.
-    pub fn match_channels(
-        &self,
-        input: &HookInput,
-        config: &AppConfig,
-    ) -> Result<Vec<String>> {
+    pub fn match_channels(&self, input: &HookInput, config: &AppConfig) -> Result<Vec<String>> {
         let mut matched_channels = Vec::new();
 
         // Check each routing rule in order
@@ -81,8 +77,9 @@ impl ChannelRouter {
         // Check tool pattern for PreToolUse
         if let Some(pattern) = &rule.match_conditions.tool_pattern {
             if let HookData::PreToolUse(data) = &input.data {
-                let regex = Regex::new(pattern)
-                    .map_err(|e| NotificationError::RoutingError(format!("Invalid regex: {}", e)))?;
+                let regex = Regex::new(pattern).map_err(|e| {
+                    NotificationError::RoutingError(format!("Invalid regex: {}", e))
+                })?;
                 if !regex.is_match(&data.tool_name) {
                     return Ok(false);
                 }
@@ -100,10 +97,16 @@ impl ChannelRouter {
         match &input.data {
             HookData::Notification(data) => data.message.clone(),
             HookData::PreToolUse(data) => data.tool_name.clone(),
+            HookData::PermissionRequest(data) => data
+                .tool_name
+                .clone()
+                .unwrap_or_else(|| "Permission request".to_string()),
             HookData::Stop(data) => data.reason.as_deref().unwrap_or("").to_string(),
-            HookData::SubagentStop(data) => {
-                data.reason.as_deref().unwrap_or("Subagent stopped").to_string()
-            }
+            HookData::SubagentStop(data) => data
+                .reason
+                .as_deref()
+                .unwrap_or("Subagent stopped")
+                .to_string(),
         }
     }
 
@@ -176,11 +179,7 @@ mod tests {
 
         let router = ChannelRouter::new(&config);
 
-        let stop_input = HookInput::stop(
-            "test".to_string(),
-            None,
-            Some("Test stop".to_string()),
-        );
+        let stop_input = HookInput::stop("test".to_string(), None, Some("Test stop".to_string()));
 
         let notification_input = HookInput::notification(
             "test".to_string(),
@@ -281,7 +280,11 @@ mod tests {
         let config = create_test_config();
         let router = ChannelRouter::new(&config);
 
-        let channels = router.override_channels(vec!["system".to_string(), "wechat".to_string(), "system".to_string()]);
+        let channels = router.override_channels(vec![
+            "system".to_string(),
+            "wechat".to_string(),
+            "system".to_string(),
+        ]);
         assert_eq!(channels, vec!["system", "wechat"]);
     }
 
@@ -300,11 +303,7 @@ mod tests {
 
         let router = ChannelRouter::new(&config);
 
-        let stop_input = HookInput::stop(
-            "test".to_string(),
-            None,
-            Some("Test stop".to_string()),
-        );
+        let stop_input = HookInput::stop("test".to_string(), None, Some("Test stop".to_string()));
 
         // Should use default since rule is disabled
         let channels = router.match_channels(&stop_input, &config).unwrap();

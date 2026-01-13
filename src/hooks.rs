@@ -17,6 +17,8 @@ pub enum HookType {
     Stop,
     /// Hook invoked when a subagent stops
     SubagentStop,
+    /// Hook invoked when permission dialog is shown
+    PermissionRequest,
 }
 
 /// Common fields present in all hook types
@@ -36,6 +38,10 @@ pub struct NotificationData {
     pub message: String,
     /// Optional notification title (defaults to "Claude Code")
     pub title: Option<String>,
+    /// Type of notification (optional, currently not sent by Claude Code due to bug #11964)
+    /// Expected values: "permission_prompt", "idle_prompt", "auth_success", "elicitation_dialog"
+    #[serde(default)]
+    pub notification_type: Option<String>,
 }
 
 /// Data specific to PreToolUse hooks
@@ -44,6 +50,17 @@ pub struct PreToolUseData {
     /// Name of the tool being invoked
     pub tool_name: String,
     /// Optional additional context about the tool use
+    #[serde(default)]
+    pub context: Option<String>,
+}
+
+/// Data specific to PermissionRequest hooks
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PermissionRequestData {
+    /// Name of the tool requiring permission
+    #[serde(default)]
+    pub tool_name: Option<String>,
+    /// Optional additional context about the permission request
     #[serde(default)]
     pub context: Option<String>,
 }
@@ -79,6 +96,8 @@ pub enum HookData {
     Stop(StopData),
     /// SubagentStop-specific data
     SubagentStop(SubagentStopData),
+    /// PermissionRequest-specific data
+    PermissionRequest(PermissionRequestData),
 }
 
 /// Complete hook input structure
@@ -108,7 +127,11 @@ impl HookInput {
                 session_id,
                 transcript_path,
             },
-            data: HookData::Notification(NotificationData { message, title }),
+            data: HookData::Notification(NotificationData {
+                message,
+                title,
+                notification_type: None,
+            }),
         }
     }
 
@@ -158,7 +181,27 @@ impl HookInput {
                 session_id,
                 transcript_path,
             },
-            data: HookData::SubagentStop(SubagentStopData { subagent_id, reason }),
+            data: HookData::SubagentStop(SubagentStopData {
+                subagent_id,
+                reason,
+            }),
+        }
+    }
+
+    /// Create a PermissionRequest hook input (for testing)
+    pub fn permission_request(
+        session_id: String,
+        transcript_path: Option<String>,
+        tool_name: Option<String>,
+        context: Option<String>,
+    ) -> Self {
+        Self {
+            hook_type: HookType::PermissionRequest,
+            common: CommonHookFields {
+                session_id,
+                transcript_path,
+            },
+            data: HookData::PermissionRequest(PermissionRequestData { tool_name, context }),
         }
     }
 }

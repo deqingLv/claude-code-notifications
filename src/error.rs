@@ -56,6 +56,14 @@ pub enum NotificationError {
     /// Template rendering error
     #[error("Template error: {0}")]
     TemplateError(String),
+
+    /// Transcript parsing error
+    #[error("Transcript parsing error: {0}")]
+    TranscriptError(String),
+
+    /// Analysis error
+    #[error("Transcript analysis error: {0}")]
+    AnalysisError(String),
 }
 
 /// Channel-specific errors

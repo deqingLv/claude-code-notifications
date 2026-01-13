@@ -3,10 +3,10 @@
 //! This module defines the core abstraction for notification channels.
 //! All notification channels must implement the NotificationChannel trait.
 
-use async_trait::async_trait;
 use crate::config::ChannelConfig;
-use crate::error::{ChannelError, NotificationError, Result};
+use crate::error::{ChannelError, NotificationError};
 use crate::hooks::HookInput;
+use async_trait::async_trait;
 
 /// Result type for channel operations
 pub type ChannelResult<T> = std::result::Result<T, ChannelError>;

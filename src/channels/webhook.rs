@@ -3,7 +3,6 @@
 //! This module provides a reusable HTTP client for webhook-based notifications
 //! with support for custom headers and timeout configuration.
 
-use async_trait::async_trait;
 use reqwest::Client;
 use serde::Serialize;
 use std::time::Duration;
@@ -22,7 +21,9 @@ impl WebhookClient {
         let client = Client::builder()
             .timeout(Duration::from_secs(3))
             .build()
-            .map_err(|e| NotificationError::WebhookError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                NotificationError::WebhookError(format!("Failed to create HTTP client: {}", e))
+            })?;
 
         Ok(Self {
             client,
@@ -35,7 +36,9 @@ impl WebhookClient {
         let client = Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
             .build()
-            .map_err(|e| NotificationError::WebhookError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                NotificationError::WebhookError(format!("Failed to create HTTP client: {}", e))
+            })?;
 
         Ok(Self {
             client,
@@ -66,7 +69,8 @@ impl WebhookClient {
 
         let status = response.status();
         let body_result: std::result::Result<String, reqwest::Error> = response.text().await;
-        let body = body_result.map_err(|e| ChannelError::HttpError(format!("Failed to read response body: {}", e)))?;
+        let body = body_result
+            .map_err(|e| ChannelError::HttpError(format!("Failed to read response body: {}", e)))?;
 
         if status.is_success() {
             Ok(WebhookResponse::Success(body))
@@ -88,21 +92,18 @@ impl WebhookClient {
             request = request.header(key, value);
         }
 
-        let response = request
-            .timeout(self.timeout)
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    ChannelError::Timeout
-                } else {
-                    ChannelError::HttpError(e.to_string())
-                }
-            })?;
+        let response = request.timeout(self.timeout).send().await.map_err(|e| {
+            if e.is_timeout() {
+                ChannelError::Timeout
+            } else {
+                ChannelError::HttpError(e.to_string())
+            }
+        })?;
 
         let status = response.status();
         let body_result: std::result::Result<String, reqwest::Error> = response.text().await;
-        let body = body_result.map_err(|e| ChannelError::HttpError(format!("Failed to read response body: {}", e)))?;
+        let body = body_result
+            .map_err(|e| ChannelError::HttpError(format!("Failed to read response body: {}", e)))?;
 
         if status.is_success() {
             Ok(WebhookResponse::Success(body))

@@ -4,27 +4,33 @@
 //! from Claude Code hooks and displaying desktop notifications with
 //! optional sound playback.
 
-mod config;
+mod analyzer;
 mod channels;
-mod router;
+mod config;
 mod error;
 mod hooks;
+mod router;
+mod summary;
+mod transcript;
 mod web;
 
-use std::io::Read;
-use std::time::Duration;
-use std::process::Command;
-use std::thread;
-use std::sync::Arc;
-use serde::{Deserialize, Serialize};
 use notify_rust::{Notification, Timeout};
+use serde::{Deserialize, Serialize};
+use std::io::Read;
+use std::process::Command;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 use tokio::runtime::Runtime;
 
-pub use config::*;
+pub use analyzer::*;
 pub use channels::*;
-pub use router::ChannelRouter;
+pub use config::*;
 pub use error::{NotificationError, Result};
 pub use hooks::*;
+pub use router::ChannelRouter;
+pub use summary::*;
+pub use transcript::*;
 pub use web::start_web_server;
 
 /// JSON input structure received from Claude Code hooks
@@ -96,9 +102,10 @@ impl SoundSystem {
 
             // Verify file exists
             if !std::path::Path::new(&expanded_path).exists() {
-                return Err(NotificationError::InvalidSoundParameter(
-                    format!("Sound file not found: {}", expanded_path)
-                ));
+                return Err(NotificationError::InvalidSoundParameter(format!(
+                    "Sound file not found: {}",
+                    expanded_path
+                )));
             }
 
             Ok(expanded_path)
@@ -169,7 +176,10 @@ impl ChannelManager {
 
         for channel_id in matched_channels {
             // Get channel configuration
-            let channel_config = self.config.channels.get(&channel_id)
+            let channel_config = self
+                .config
+                .channels
+                .get(&channel_id)
                 .cloned()
                 .unwrap_or_default();
 
@@ -190,7 +200,7 @@ impl ChannelManager {
                 let input = Arc::clone(&input);
 
                 tasks.push(tokio::spawn(async move {
-                    let result = channel.send(&*input, &channel_config).await;
+                    let result = channel.send(&input, &channel_config).await;
                     (channel_id, result)
                 }));
             }
@@ -202,19 +212,15 @@ impl ChannelManager {
             return Ok(());
         }
 
-        let results = tokio::time::timeout(
-            Duration::from_secs(2),
-            futures::future::join_all(tasks),
-        ).await;
+        let results =
+            tokio::time::timeout(Duration::from_secs(2), futures::future::join_all(tasks)).await;
 
         match results {
             Ok(task_results) => {
                 // Log errors but don't fail on partial failures
-                for task_result in task_results {
-                    if let Ok((channel_type, result)) = task_result {
-                        if let Err(e) = result {
-                            eprintln!("Channel {} error: {}", channel_type, e);
-                        }
+                for (channel_type, result) in task_results.into_iter().flatten() {
+                    if let Err(e) = result {
+                        eprintln!("Channel {} error: {}", channel_type, e);
                     }
                 }
                 Ok(())
@@ -233,7 +239,11 @@ impl ChannelManager {
     }
 
     /// Send notification to specific channels (async version)
-    pub async fn send_to_channels_async(&self, input: &HookInput, channel_ids: Vec<String>) -> Result<()> {
+    pub async fn send_to_channels_async(
+        &self,
+        input: &HookInput,
+        channel_ids: Vec<String>,
+    ) -> Result<()> {
         // Deduplicate channels
         let channel_ids = self.router.override_channels(channel_ids);
 
@@ -244,7 +254,10 @@ impl ChannelManager {
 
         for channel_id in channel_ids {
             // Get channel configuration
-            let channel_config = self.config.channels.get(&channel_id)
+            let channel_config = self
+                .config
+                .channels
+                .get(&channel_id)
                 .cloned()
                 .unwrap_or_default();
 
@@ -266,7 +279,7 @@ impl ChannelManager {
                 let input = Arc::clone(&input);
 
                 tasks.push(tokio::spawn(async move {
-                    let result = channel.send(&*input, &channel_config).await;
+                    let result = channel.send(&input, &channel_config).await;
                     (channel_id, result)
                 }));
             }
@@ -278,18 +291,14 @@ impl ChannelManager {
             return Ok(());
         }
 
-        let results = tokio::time::timeout(
-            Duration::from_secs(2),
-            futures::future::join_all(tasks),
-        ).await;
+        let results =
+            tokio::time::timeout(Duration::from_secs(2), futures::future::join_all(tasks)).await;
 
         match results {
             Ok(task_results) => {
-                for task_result in task_results {
-                    if let Ok((channel_type, result)) = task_result {
-                        if let Err(e) = result {
-                            eprintln!("Channel {} error: {}", channel_type, e);
-                        }
+                for (channel_type, result) in task_results.into_iter().flatten() {
+                    if let Err(e) = result {
+                        eprintln!("Channel {} error: {}", channel_type, e);
                     }
                 }
                 Ok(())
@@ -315,8 +324,15 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
     // Prepare notification title and body based on hook type
     let (title, body) = match &input.data {
         HookData::Notification(data) => {
+            // Enhanced notification handling with notification_type support
             let title = data.title.as_deref().unwrap_or("Claude Code");
-            let body = data.message.clone();
+            let body = if let Some(notif_type) = &data.notification_type {
+                // When notification_type is available (after Claude Code bug fix), combine type and message
+                format!("[{}] {}", notif_type, data.message)
+            } else {
+                // Current behavior: just use the message
+                data.message.clone()
+            };
             (title, body)
         }
         HookData::PreToolUse(data) => {
@@ -324,20 +340,80 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
             let body = data.tool_name.clone();
             (title, body)
         }
-        HookData::Stop(data) => {
-            let title = "Claude Code - Stop";
-            let body = data.reason.as_deref().unwrap_or("Claude stopped generating").to_string();
-            (title, body)
-        }
-        HookData::SubagentStop(data) => {
-            let title = "Claude Code - SubagentStop";
-            let body = match (&data.subagent_id, &data.reason) {
-                (Some(id), Some(reason)) => format!("Subagent {} stopped: {}", id, reason),
-                (Some(id), None) => format!("Subagent {} stopped", id),
-                (None, Some(reason)) => format!("Subagent stopped: {}", reason),
-                (None, None) => "Subagent stopped".to_string(),
+        HookData::PermissionRequest(data) => {
+            let title = "Claude Code - Permission Request";
+            let body = if let Some(tool_name) = &data.tool_name {
+                format!("Claude requests permission to use {}", tool_name)
+            } else {
+                "Claude requests permission to execute a tool".to_string()
             };
             (title, body)
+        }
+        HookData::Stop(data) => {
+            // Try transcript analysis first
+            if let Some(transcript_path) = &input.common.transcript_path {
+                match analyzer::analyze_transcript(transcript_path) {
+                    Ok(status) => {
+                        let title = "Claude Code";
+                        let body = summary::generate_summary(transcript_path, status);
+                        (title, body)
+                    }
+                    Err(_) => {
+                        // Fall back to simple message on analysis error
+                        let title = "Claude Code - Stop";
+                        let body = data
+                            .reason
+                            .as_deref()
+                            .unwrap_or("Claude stopped generating")
+                            .to_string();
+                        (title, body)
+                    }
+                }
+            } else {
+                // No transcript path provided
+                let title = "Claude Code - Stop";
+                let body = data
+                    .reason
+                    .as_deref()
+                    .unwrap_or("Claude stopped generating")
+                    .to_string();
+                (title, body)
+            }
+        }
+        HookData::SubagentStop(data) => {
+            // Try transcript analysis first
+            if let Some(transcript_path) = &input.common.transcript_path {
+                match analyzer::analyze_transcript(transcript_path) {
+                    Ok(status) => {
+                        let title = "Claude Code";
+                        let body = summary::generate_summary(transcript_path, status);
+                        (title, body)
+                    }
+                    Err(_) => {
+                        // Fall back to simple message on analysis error
+                        let title = "Claude Code - SubagentStop";
+                        let body = match (&data.subagent_id, &data.reason) {
+                            (Some(id), Some(reason)) => {
+                                format!("Subagent {} stopped: {}", id, reason)
+                            }
+                            (Some(id), None) => format!("Subagent {} stopped", id),
+                            (None, Some(reason)) => format!("Subagent stopped: {}", reason),
+                            (None, None) => "Subagent stopped".to_string(),
+                        };
+                        (title, body)
+                    }
+                }
+            } else {
+                // No transcript path provided
+                let title = "Claude Code - SubagentStop";
+                let body = match (&data.subagent_id, &data.reason) {
+                    (Some(id), Some(reason)) => format!("Subagent {} stopped: {}", id, reason),
+                    (Some(id), None) => format!("Subagent {} stopped", id),
+                    (None, Some(reason)) => format!("Subagent stopped: {}", reason),
+                    (None, None) => "Subagent stopped".to_string(),
+                };
+                (title, body)
+            }
         }
     };
 
@@ -390,7 +466,7 @@ pub fn parse_input() -> Result<HookInput> {
 
     if input.trim().is_empty() {
         return Err(NotificationError::InvalidInput(
-            "Empty input received".to_string()
+            "Empty input received".to_string(),
         ));
     }
 

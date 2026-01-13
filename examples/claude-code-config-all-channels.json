@@ -1,0 +1,95 @@
+{
+  "version": "1.0",
+  "default_channels": ["system"],
+  "channels": {
+    "system": {
+      "enabled": true,
+      "sound": "Glass",
+      "timeout_ms": 5000,
+      "icon": null
+    },
+    "wechat": {
+      "enabled": false,
+      "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_WEBHOOK_KEY",
+      "icon": null,
+      "message_template": {
+        "title": "{{hook_type}} - Claude Code",
+        "body": "{{message}}",
+        "mentioned_list": []
+      }
+    },
+    "feishu": {
+      "enabled": false,
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_ID",
+      "icon": null,
+      "message_template": {
+        "title": "{{hook_type}}",
+        "body": "{{message}}"
+      }
+    },
+    "dingtalk": {
+      "enabled": false,
+      "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=YOUR_ACCESS_TOKEN",
+      "secret": "SECYOURSECRET",
+      "icon": null,
+      "message_template": {
+        "title": "{{hook_type}}",
+        "body": "{{message}}"
+      }
+    }
+  },
+  "routing_rules": [
+    {
+      "name": "Critical notifications to all channels",
+      "match": {
+        "hook_types": ["Stop", "SubagentStop"],
+        "message_pattern": ".*error.*",
+        "tool_pattern": null
+      },
+      "channels": ["system", "wechat"],
+      "enabled": true
+    },
+    {
+      "name": "PreToolUse ExitPlanMode only to system",
+      "match": {
+        "hook_types": ["PreToolUse"],
+        "message_pattern": null,
+        "tool_pattern": "ExitPlanMode"
+      },
+      "channels": ["system"],
+      "enabled": true
+    },
+    {
+      "name": "All notifications to WeChat",
+      "match": {
+        "hook_types": ["Notification", "PreToolUse", "Stop", "SubagentStop"],
+        "message_pattern": null,
+        "tool_pattern": null
+      },
+      "channels": ["wechat"],
+      "enabled": false
+    }
+  ],
+  "global_templates": {
+    "default": {
+      "title": "{{hook_type}}",
+      "body": "{{message}}"
+    },
+    "Notification": {
+      "title": "Claude Code",
+      "body": "{{message}}"
+    },
+    "PreToolUse": {
+      "title": "Tool: {{tool_name}}",
+      "body": "{{context}}"
+    },
+    "Stop": {
+      "title": "Claude Stopped",
+      "body": "{{reason}}"
+    },
+    "SubagentStop": {
+      "title": "Subagent Stopped",
+      "body": "Subagent {{subagent_id}}: {{reason}}"
+    }
+  }
+}

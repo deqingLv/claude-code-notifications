@@ -36,6 +36,7 @@ fn default_channels() -> Vec<String> {
 /// Configuration for a specific notification channel
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct ChannelConfig {
     /// Display name for this channel instance (e.g., "个人钉钉", "协作群")
     #[serde(default)]
@@ -71,26 +72,10 @@ pub struct ChannelConfig {
     pub extra: HashMap<String, serde_json::Value>,
 }
 
-impl Default for ChannelConfig {
-    fn default() -> Self {
-        Self {
-            name: None,
-            channel_type: String::new(),
-            enabled: false,
-            webhook_url: None,
-            secret: None,
-            icon: None,
-            message_template: None,
-            sound: None,
-            timeout_ms: None,
-            extra: HashMap::new(),
-        }
-    }
-}
-
 /// Message template with variable substitution
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct MessageTemplate {
     /// Template for notification title
     pub title: Option<String>,
@@ -104,17 +89,6 @@ pub struct MessageTemplate {
     /// Additional template-specific fields
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
-}
-
-impl Default for MessageTemplate {
-    fn default() -> Self {
-        Self {
-            title: None,
-            body: None,
-            mentioned_list: None,
-            extra: HashMap::new(),
-        }
-    }
 }
 
 /// Routing rule for intelligent channel selection
@@ -142,6 +116,7 @@ fn default_enabled() -> bool {
 /// Matching conditions for routing rules
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct RuleMatch {
     /// Hook types to match (e.g., "Notification", "PreToolUse")
     pub hook_types: Vec<String>,
@@ -151,16 +126,6 @@ pub struct RuleMatch {
 
     /// Regex pattern to match against tool name (PreToolUse only)
     pub tool_pattern: Option<String>,
-}
-
-impl Default for RuleMatch {
-    fn default() -> Self {
-        Self {
-            hook_types: Vec::new(),
-            message_pattern: None,
-            tool_pattern: None,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -196,7 +161,10 @@ mod tests {
             config.webhook_url,
             Some("https://example.com/webhook".to_string())
         );
-        assert_eq!(config.icon, Some("https://example.com/icon.png".to_string()));
+        assert_eq!(
+            config.icon,
+            Some("https://example.com/icon.png".to_string())
+        );
     }
 
     #[test]

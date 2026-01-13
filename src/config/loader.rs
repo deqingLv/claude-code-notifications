@@ -114,7 +114,10 @@ mod tests {
 
         let loaded_config = load_config_from_path(&path).unwrap();
         assert_eq!(original_config.version, loaded_config.version);
-        assert_eq!(original_config.default_channels, loaded_config.default_channels);
+        assert_eq!(
+            original_config.default_channels,
+            loaded_config.default_channels
+        );
     }
 
     #[test]
