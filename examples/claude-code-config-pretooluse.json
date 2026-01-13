@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "ExitPlanMode|AskUserQuestion|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Pop"
+          }
+        ]
+      }
+    ]
+  }
+}

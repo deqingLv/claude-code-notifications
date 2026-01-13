@@ -36,7 +36,27 @@ For direct cargo usage when Make is unavailable:
 
 ### Hook Configuration
 
-This program integrates with Claude Code's notification system through the hooks configuration. Configure in your Claude Code settings file:
+This program integrates with Claude Code's notification system through the hooks configuration. Configure in your Claude Code settings file (`~/.claude/settings.json` on macOS):
+
+**Automatic Configuration:**
+```bash
+# Configure hooks automatically (uses default sound: Hero, configures all hook types)
+claude-code-notifications init
+
+# Configure with custom sound
+claude-code-notifications init --sound Submarine
+
+# Configure specific hook types only
+claude-code-notifications init --hook-type Notification --hook-type PreToolUse
+
+# Configure with custom PreToolUse matcher
+claude-code-notifications init --pre-tool-use-matcher "ExitPlanMode|AskUserQuestion|Task"
+
+# Configure with custom config file location
+claude-code-notifications init --config /path/to/config.json
+```
+
+**Manual Configuration:**
 
 **Basic Configuration:**
 ```json
@@ -44,8 +64,13 @@ This program integrates with Claude Code's notification system through the hooks
   "hooks": {
     "Notification": [
       {
-        "type": "command",
-        "command": "claude-code-notifications"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications"
+          }
+        ]
       }
     ]
   }
@@ -58,8 +83,65 @@ This program integrates with Claude Code's notification system through the hooks
   "hooks": {
     "Notification": [
       {
-        "type": "command", 
-        "command": "claude-code-notifications --sound Submarine"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Submarine"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Multiple Hook Types Configuration:**
+```json
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Glass"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "ExitPlanMode|AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Pop"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Blow"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Sosumi"
+          }
+        ]
       }
     ]
   }
@@ -68,8 +150,26 @@ This program integrates with Claude Code's notification system through the hooks
 
 ### JSON Input Schema
 
-The hook receives structured JSON input via stdin:
+The hook receives structured JSON input via stdin. The program supports both the new unified hook format and the legacy Notification format for backward compatibility.
 
+**New Unified Hook Format (recommended):**
+```json
+{
+  "hook_type": "Notification | PreToolUse | Stop | SubagentStop",
+  "session_id": "string - Claude session identifier",
+  "transcript_path": "string? - Optional path to session transcript file",
+  "message": "string - Required for Notification hooks: notification body text",
+  "title": "string? - Optional for Notification hooks: notification title (defaults to 'Claude Code')",
+  "tool_name": "string - Required for PreToolUse hooks: name of tool being invoked",
+  "context": "string? - Optional for PreToolUse hooks: additional context about tool use",
+  "reason": "string? - Optional for Stop hooks: reason for stopping",
+  "subagent_id": "string? - Optional for SubagentStop hooks: identifier of subagent that stopped"
+}
+```
+
+**Note:** Only fields relevant to the specific hook type need to be included. For example, a PreToolUse hook should include `hook_type: "PreToolUse"`, `session_id`, and `tool_name`.
+
+**Legacy Notification Format (backward compatible):**
 ```json
 {
   "session_id": "string - Claude session identifier",
@@ -130,7 +230,7 @@ make test && make fmt && make clippy
 
 **Basic Functionality Testing:**
 ```bash
-# Test default configuration
+# Test default configuration (legacy Notification format)
 echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Default notification test","title":"Basic Test"}' | cargo run
 
 # Test system sound variants
@@ -139,6 +239,11 @@ echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Submarine
 
 # Test custom audio files
 echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Custom sound test","title":"Custom Test"}' | cargo run -- --sound ./366102__original_sound__confirmation-upward.wav
+
+# Test new hook types with unified format
+echo '{"hook_type":"PreToolUse","session_id":"test","transcript_path":"/tmp/test.md","tool_name":"ExitPlanMode"}' | cargo run -- --sound Pop
+echo '{"hook_type":"Stop","session_id":"test","transcript_path":"/tmp/test.md","reason":"User requested stop"}' | cargo run -- --sound Blow
+echo '{"hook_type":"SubagentStop","session_id":"test","transcript_path":"/tmp/test.md","subagent_id":"agent-123","reason":"Task completed"}' | cargo run -- --sound Sosumi
 ```
 
 **Error Handling Testing:**

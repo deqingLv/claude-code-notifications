@@ -2,8 +2,13 @@
   "hooks": {
     "Notification": [
       {
-        "type": "command",
-        "command": "claude-code-notifications --sound Submarine"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Submarine"
+          }
+        ]
       }
     ]
   }

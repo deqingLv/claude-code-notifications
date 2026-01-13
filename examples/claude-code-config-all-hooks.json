@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Glass"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "ExitPlanMode|AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Pop"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Blow"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Sosumi"
+          }
+        ]
+      }
+    ]
+  }
+}

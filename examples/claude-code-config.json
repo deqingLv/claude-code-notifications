@@ -2,8 +2,13 @@
   "hooks": {
     "Notification": [
       {
-        "type": "command",
-        "command": "claude-code-notifications"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications"
+          }
+        ]
       }
     ]
   }

@@ -5,6 +5,7 @@
 //! optional sound playback.
 
 mod error;
+mod hooks;
 
 use std::io::Read;
 use std::process::Command;
@@ -13,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use notify_rust::{Notification, Timeout};
 
 pub use error::{NotificationError, Result};
+pub use hooks::*;
 
 /// JSON input structure received from Claude Code hooks
 #[derive(Debug, Deserialize, Serialize)]
@@ -105,25 +107,49 @@ impl SoundSystem {
     }
 }
 
-/// Display a desktop notification with optional sound
+/// Handle a hook input with optional sound
 ///
-/// This function displays a desktop notification and optionally plays a sound
-/// in parallel. The notification and sound playback happen concurrently.
-pub fn send_notification(input: &NotificationInput, sound: Option<&str>) -> Result<()> {
+/// This function displays appropriate notifications based on the hook type
+/// and optionally plays a sound in parallel.
+pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
     // Validate required fields
-    if input.session_id.is_empty() {
+    if input.common.session_id.is_empty() {
         return Err(NotificationError::MissingField("session_id".to_string()));
     }
-    if input.message.is_empty() {
-        return Err(NotificationError::MissingField("message".to_string()));
-    }
 
-    let title = input.title.as_deref().unwrap_or("Claude Code");
+    // Prepare notification title and body based on hook type
+    let (title, body) = match &input.data {
+        HookData::Notification(data) => {
+            let title = data.title.as_deref().unwrap_or("Claude Code");
+            let body = data.message.clone();
+            (title, body)
+        }
+        HookData::PreToolUse(data) => {
+            let title = "Claude Code - PreToolUse";
+            let body = data.tool_name.clone();
+            (title, body)
+        }
+        HookData::Stop(data) => {
+            let title = "Claude Code - Stop";
+            let body = data.reason.as_deref().unwrap_or("Claude stopped generating").to_string();
+            (title, body)
+        }
+        HookData::SubagentStop(data) => {
+            let title = "Claude Code - SubagentStop";
+            let body = match (&data.subagent_id, &data.reason) {
+                (Some(id), Some(reason)) => format!("Subagent {} stopped: {}", id, reason),
+                (Some(id), None) => format!("Subagent {} stopped", id),
+                (None, Some(reason)) => format!("Subagent stopped: {}", reason),
+                (None, None) => "Subagent stopped".to_string(),
+            };
+            (title, body)
+        }
+    };
 
     // Create notification
     let mut notification = Notification::new();
     notification.summary(title);
-    notification.body(&input.message);
+    notification.body(&body);
     notification.timeout(Timeout::Milliseconds(5000)); // 5 second timeout
 
     // Display notification
@@ -143,8 +169,27 @@ pub fn send_notification(input: &NotificationInput, sound: Option<&str>) -> Resu
     Ok(())
 }
 
+/// Display a desktop notification with optional sound
+///
+/// This function displays a desktop notification and optionally plays a sound
+/// in parallel. The notification and sound playback happen concurrently.
+/// Maintains backward compatibility with the old NotificationInput format.
+pub fn send_notification(input: &NotificationInput, sound: Option<&str>) -> Result<()> {
+    // Convert legacy NotificationInput to HookInput
+    let hook_input = HookInput::notification(
+        input.session_id.clone(),
+        input.transcript_path.clone(),
+        input.message.clone(),
+        input.title.clone(),
+    );
+    handle_hook(&hook_input, sound)
+}
+
 /// Parse JSON input from stdin
-pub fn parse_input() -> Result<NotificationInput> {
+///
+/// Supports both the new HookInput format and the legacy NotificationInput format
+/// for backward compatibility.
+pub fn parse_input() -> Result<HookInput> {
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input)?;
 
@@ -154,8 +199,29 @@ pub fn parse_input() -> Result<NotificationInput> {
         ));
     }
 
-    let notification_input: NotificationInput = serde_json::from_str(&input)?;
-    Ok(notification_input)
+    // First try to parse as the new HookInput format
+    match serde_json::from_str::<HookInput>(&input) {
+        Ok(hook_input) => Ok(hook_input),
+        Err(_) => {
+            // If that fails, try to parse as legacy NotificationInput format
+            match serde_json::from_str::<NotificationInput>(&input) {
+                Ok(notification_input) => {
+                    // Convert legacy format to new format
+                    Ok(HookInput::notification(
+                        notification_input.session_id,
+                        notification_input.transcript_path,
+                        notification_input.message,
+                        notification_input.title,
+                    ))
+                }
+                Err(e) => {
+                    // Return the original HookInput parse error for better diagnostics
+                    // but try to parse again to get the actual error
+                    Err(NotificationError::JsonParseError(e))
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
