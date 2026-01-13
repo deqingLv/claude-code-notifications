@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "default_channels": ["system"],
+  "channels": {
+    "system": {
+      "name": "系统通知",
+      "channel_type": "system",
+      "enabled": true,
+      "sound": "Glass",
+      "timeout_ms": 5000
+    },
+    "dingtalk_personal": {
+      "name": "个人钉钉",
+      "channel_type": "dingtalk",
+      "enabled": true,
+      "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=YOUR_PERSONAL_TOKEN",
+      "secret": "SEC..."
+    },
+    "dingtalk_team": {
+      "name": "团队协作群",
+      "channel_type": "dingtalk",
+      "enabled": true,
+      "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TEAM_TOKEN",
+      "secret": "SEC..."
+    },
+    "feishu_dev": {
+      "name": "开发组飞书",
+      "channel_type": "feishu",
+      "enabled": false,
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_DEV_WEBHOOK"
+    },
+    "feishu_ops": {
+      "name": "运维组飞书",
+      "channel_type": "feishu",
+      "enabled": false,
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_OPS_WEBHOOK"
+    },
+    "wechat_alerts": {
+      "name": "告警通知群",
+      "channel_type": "wechat",
+      "enabled": false,
+      "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_ALERT_KEY"
+    }
+  },
+  "routing_rules": [
+    {
+      "name": "所有通知到个人钉钉",
+      "match": {
+        "hook_types": []
+      },
+      "channels": ["system", "dingtalk_personal"],
+      "enabled": true
+    },
+    {
+      "name": "错误发到所有渠道",
+      "match": {
+        "hook_types": ["Stop", "SubagentStop"],
+        "message_pattern": ".*error.*"
+      },
+      "channels": ["system", "dingtalk_personal", "dingtalk_team", "feishu_dev", "wechat_alerts"],
+      "enabled": true
+    },
+    {
+      "name": "PreToolUse只发系统通知",
+      "match": {
+        "hook_types": ["PreToolUse"]
+      },
+      "channels": ["system"],
+      "enabled": true
+    }
+  ],
+  "global_templates": {
+    "default": {
+      "title": "{{hook_type}}",
+      "body": "{{message}}"
+    },
+    "PreToolUse": {
+      "title": "Tool: {{tool_name}}",
+      "body": "{{context}}"
+    },
+    "Stop": {
+      "title": "Claude Stopped",
+      "body": "{{reason}}"
+    }
+  }
+}

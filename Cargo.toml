@@ -19,6 +19,20 @@ anyhow = "1.0"
 thiserror = "1.0"
 shellexpand = "3.0"
 dirs = "6.0"
+async-trait = "0.1"
+tokio = { version = "1.0", features = ["full"] }
+regex = "1.0"
+futures = "0.3"
+reqwest = { version = "0.11", features = ["json"] }
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.21"
+hex = "0.4"
+actix-web = "4.0"
+actix-rt = "2.0"
+actix-files = "0.6"
+mime = "0.3"
+open = "5.0"
 
 [dev-dependencies]
 tempfile = "3.0"

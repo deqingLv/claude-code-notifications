@@ -8,6 +8,10 @@ High-performance Rust CLI tool for Claude Code desktop notifications.
 
 ## Features
 
+- ✅ **Multi-channel support** - System notifications, WeChat Work, Feishu/Lark, DingTalk
+- ✅ **Multiple instances** - Configure multiple channels of the same type (e.g., personal & team DingTalk)
+- ✅ **Intelligent routing** - Route notifications based on hook types and message patterns
+- ✅ **Web UI** - Visual configuration interface at http://localhost:3000
 - ✅ **Cross-platform notifications** (Windows, macOS, Linux via `notify-rust`)
 - ✅ **Sound support** with system sounds and custom audio files
 - ✅ **Parallel execution** - notifications and sounds play simultaneously
@@ -100,6 +104,82 @@ The CLI receives JSON via stdin with the following structure:
   "message": "string - Notification body text",
   "title": "string? - Optional notification title (defaults to 'Claude Code')"
 }
+```
+
+## Multi-Channel Configuration
+
+The tool supports multiple notification channels with intelligent routing rules. Configuration is stored in `~/.claude-code-notifications.json`.
+
+### Channel Types
+
+- **system** - Desktop notifications (default)
+- **dingtalk** - DingTalk webhook notifications
+- **feishu** - Feishu/Lark webhook notifications
+- **wechat** - WeChat Work webhook notifications
+
+### Multiple Instances
+
+You can configure multiple instances of the same channel type:
+
+```json
+{
+  "version": "1.0",
+  "channels": {
+    "system": {
+      "name": "系统通知",
+      "channel_type": "system",
+      "enabled": true,
+      "sound": "Glass"
+    },
+    "dingtalk_personal": {
+      "name": "个人钉钉",
+      "channel_type": "dingtalk",
+      "enabled": true,
+      "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN"
+    },
+    "dingtalk_team": {
+      "name": "团队协作群",
+      "channel_type": "dingtalk",
+      "enabled": true,
+      "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TEAM_TOKEN"
+    }
+  },
+  "routing_rules": [
+    {
+      "name": "All notifications to personal DingTalk",
+      "match": { "hook_types": [] },
+      "channels": ["system", "dingtalk_personal"],
+      "enabled": true
+    }
+  ]
+}
+```
+
+### Web UI Configuration
+
+Launch the web configuration interface:
+
+```bash
+# Start web UI (opens browser automatically)
+cargo run -- ui
+
+# Custom port without auto-opening
+cargo run -- ui --port 8080 --no-open
+```
+
+The web UI allows you to:
+- Configure channel settings visually
+- Test channel connectivity
+- Set up routing rules
+- Customize message templates
+
+### Command-Line Channel Override
+
+Bypass routing rules and send to specific channels:
+
+```bash
+echo '{"hook_type":"Notification","session_id":"test","message":"Test"}' | \
+  cargo run -- --channels system,dingtalk_personal
 ```
 
 ## Sound System

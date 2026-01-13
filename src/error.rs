@@ -36,6 +36,48 @@ pub enum NotificationError {
     /// Invalid JSON input structure
     #[error("Invalid JSON input: {0}")]
     InvalidInput(String),
+
+    /// Channel-specific error
+    #[error("Channel error: {0}")]
+    ChannelError(#[from] ChannelError),
+
+    /// Configuration error
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+
+    /// Routing rule error
+    #[error("Routing error: {0}")]
+    RoutingError(String),
+
+    /// Webhook request error
+    #[error("Webhook error: {0}")]
+    WebhookError(String),
+
+    /// Template rendering error
+    #[error("Template error: {0}")]
+    TemplateError(String),
+}
+
+/// Channel-specific errors
+#[derive(Error, Debug)]
+pub enum ChannelError {
+    #[error("HTTP client error: {0}")]
+    HttpError(String),
+
+    #[error("Webhook response error: {0}")]
+    WebhookResponseError(String),
+
+    #[error("Invalid channel configuration: {0}")]
+    InvalidConfig(String),
+
+    #[error("Channel disabled by configuration")]
+    DisabledError,
+
+    #[error("Channel not found: {0}")]
+    NotFound(String),
+
+    #[error("Channel operation timeout")]
+    Timeout,
 }
 
 /// Result type alias for the notification system

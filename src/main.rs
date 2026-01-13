@@ -5,9 +5,24 @@
 //! with optional sound playback.
 
 use clap::Parser;
-use claude_code_notifications::{parse_input, handle_hook, NotificationError};
+use claude_code_notifications::{
+    parse_input, handle_hook, ChannelManager, NotificationError, get_config_path,
+    start_web_server
+};
 use std::fs;
 use std::path::PathBuf;
+
+// Version constants from build script
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const COMMIT_HASH: &str = env!("GIT_COMMIT_HASH");
+const BUILD_TIMESTAMP: &str = env!("BUILD_TIMESTAMP");
+
+/// Get detailed version information
+fn print_version() {
+    println!("claude-code-notifications {}", VERSION);
+    println!("commit: {}", COMMIT_HASH);
+    println!("built: {}", BUILD_TIMESTAMP);
+}
 
 /// Hook types that can be configured
 #[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,7 +38,7 @@ enum HookType {
 #[command(
     name = "claude-code-notifications",
     about = "Claude Code hook for cross-platform desktop notifications",
-    version,
+    version = VERSION,
     long_about = "A CLI tool for Claude Code desktop notifications with automatic hook configuration.
 
 Subcommands:
@@ -62,6 +77,9 @@ enum Commands {
 
     /// Initialize Claude Code hooks configuration
     Init(InitArgs),
+
+    /// Launch web UI for configuration
+    Ui(UiArgs),
 }
 
 /// Arguments for the run command
@@ -70,6 +88,10 @@ struct RunArgs {
     /// Sound to play with notification (system sound name or path to audio file)
     #[arg(short, long, default_value = "Hero")]
     sound: String,
+
+    /// Specific channels to use (overrides routing rules, comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    channels: Option<Vec<String>>,
 }
 
 /// Arguments for the init command
@@ -96,16 +118,39 @@ struct InitArgs {
     config: Option<String>,
 }
 
+/// Arguments for the ui command
+#[derive(Parser, Debug)]
+struct UiArgs {
+    /// Port for web server (default: 3000)
+    #[arg(short, long, default_value = "3000")]
+    port: u16,
+
+    /// Do not open browser automatically
+    #[arg(long)]
+    no_open: bool,
+}
+
 fn main() -> Result<(), NotificationError> {
+    // Check for --version or -V flag before parsing
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 && (args[1] == "--version" || args[1] == "-V") {
+        print_version();
+        std::process::exit(0);
+    }
+
     // Parse command-line arguments
     let cli = Cli::parse();
 
     match cli.command {
         Some(Commands::Run(run_args)) => run_command(run_args),
         Some(Commands::Init(init_args)) => init_command(init_args),
+        Some(Commands::Ui(ui_args)) => ui_command(ui_args),
         None => {
             // Default to run command with sound from top-level argument
-            let run_args = RunArgs { sound: cli.sound };
+            let run_args = RunArgs {
+                sound: cli.sound,
+                channels: None,
+            };
             run_command(run_args)
         }
     }
@@ -116,16 +161,34 @@ fn run_command(args: RunArgs) -> Result<(), NotificationError> {
     // Parse JSON input from stdin
     let input = parse_input()?;
 
-    // Send notification with sound (defaults to Hero, empty string disables sound)
-    let sound_param = if args.sound.is_empty() {
-        None
-    } else {
-        Some(args.sound.as_str())
-    };
-    handle_hook(&input, sound_param)?;
+    // Check if we should use the new multi-channel architecture or legacy mode
+    let config_path = get_config_path();
 
-    // Give time for sound to start playing and for any error messages to be printed
-    std::thread::sleep(std::time::Duration::from_millis(1500));
+    if config_path.exists() {
+        // New mode: use ChannelManager with config file
+        let manager = ChannelManager::load()?;
+
+        // If --channels is specified, use those channels directly (bypass routing)
+        if let Some(channels) = args.channels {
+            manager.send_to_channels(&input, channels)?;
+        } else {
+            // Otherwise, use routing rules from config
+            manager.send_notification(&input)?;
+        }
+    } else {
+        // Legacy mode: backward compatible (no config file)
+        // Send notification with sound (defaults to Hero, empty string disables sound)
+        let sound_param = if args.sound.is_empty() {
+            None
+        } else {
+            Some(args.sound.as_str())
+        };
+        handle_hook(&input, sound_param)?;
+    }
+
+    // Brief pause to ensure notification is displayed (100ms is sufficient)
+    // Notifications display synchronously, but a tiny buffer ensures OS processes it
+    std::thread::sleep(std::time::Duration::from_millis(100));
 
     Ok(())
 }
@@ -263,6 +326,25 @@ fn init_command(args: InitArgs) -> Result<(), NotificationError> {
     }
 
     Ok(())
+}
+
+/// Handle the ui command - launch web UI for configuration
+fn ui_command(args: UiArgs) -> Result<(), NotificationError> {
+    let config_path = get_config_path();
+
+    println!("Starting Claude Code Notifications Web UI...");
+    println!("Config file: {:?}", config_path);
+    println!("Port: {}", args.port);
+    println!();
+    println!("Press Ctrl+C to stop the server");
+    println!();
+
+    // Start the web server
+    actix_rt::System::new().block_on(async {
+        start_web_server(config_path, args.port, !args.no_open)
+            .await
+            .map_err(|e| NotificationError::WebhookError(format!("Web server error: {}", e)))
+    })
 }
 
 #[cfg(test)]

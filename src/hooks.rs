@@ -20,7 +20,7 @@ pub enum HookType {
 }
 
 /// Common fields present in all hook types
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CommonHookFields {
     /// Claude session identifier
     pub session_id: String,
@@ -30,7 +30,7 @@ pub struct CommonHookFields {
 }
 
 /// Data specific to Notification hooks
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct NotificationData {
     /// Notification body text
     pub message: String,
@@ -39,7 +39,7 @@ pub struct NotificationData {
 }
 
 /// Data specific to PreToolUse hooks
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PreToolUseData {
     /// Name of the tool being invoked
     pub tool_name: String,
@@ -49,7 +49,7 @@ pub struct PreToolUseData {
 }
 
 /// Data specific to Stop hooks
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct StopData {
     /// Optional reason for stopping
     #[serde(default)]
@@ -57,7 +57,7 @@ pub struct StopData {
 }
 
 /// Data specific to SubagentStop hooks
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SubagentStopData {
     /// Optional identifier of the subagent that stopped
     #[serde(default)]
@@ -67,21 +67,8 @@ pub struct SubagentStopData {
     pub reason: Option<String>,
 }
 
-/// Complete hook input structure
-#[derive(Debug, Deserialize, Serialize)]
-pub struct HookInput {
-    /// Type of hook being invoked
-    pub hook_type: HookType,
-    /// Common fields present in all hook types
-    #[serde(flatten)]
-    pub common: CommonHookFields,
-    /// Type-specific data (depends on hook_type)
-    #[serde(flatten)]
-    pub data: HookData,
-}
-
 /// Enum representing the type-specific data for each hook type
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
 pub enum HookData {
     /// Notification-specific data
@@ -92,6 +79,19 @@ pub enum HookData {
     Stop(StopData),
     /// SubagentStop-specific data
     SubagentStop(SubagentStopData),
+}
+
+/// Complete hook input structure
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct HookInput {
+    /// Type of hook being invoked
+    pub hook_type: HookType,
+    /// Common fields present in all hook types
+    #[serde(flatten)]
+    pub common: CommonHookFields,
+    /// Type-specific data (depends on hook_type)
+    #[serde(flatten)]
+    pub data: HookData,
 }
 
 impl HookInput {

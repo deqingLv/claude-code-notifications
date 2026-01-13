@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Notifications - Configuration</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔔 Claude Code Notifications Configuration</h1>
+            <p class="subtitle">Configure your notification channels and routing rules</p>
+        </header>
+
+        <div class="status-bar" id="status-bar">
+            <span class="status-indicator status-loading" id="status-indicator">●</span>
+            <span id="status-text">Loading configuration...</span>
+        </div>
+
+        <section class="section">
+            <h2>Notification Channels</h2>
+            <div id="channels-container"></div>
+        </section>
+
+        <section class="section">
+            <div class="section-header">
+                <h2>Routing Rules</h2>
+                <button class="btn btn-primary" onclick="addRoutingRule()">+ Add Rule</button>
+            </div>
+            <div id="routing-rules-container"></div>
+        </section>
+
+        <section class="section">
+            <h2>Global Templates</h2>
+            <div id="templates-container"></div>
+        </section>
+
+        <div class="actions">
+            <button class="btn btn-primary btn-large" onclick="saveConfiguration()">💾 Save Configuration</button>
+            <button class="btn btn-secondary" onclick="loadConfiguration()">🔄 Reload</button>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

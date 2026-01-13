@@ -4,17 +4,28 @@
 //! from Claude Code hooks and displaying desktop notifications with
 //! optional sound playback.
 
+mod config;
+mod channels;
+mod router;
 mod error;
 mod hooks;
+mod web;
 
 use std::io::Read;
+use std::time::Duration;
 use std::process::Command;
 use std::thread;
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use notify_rust::{Notification, Timeout};
+use tokio::runtime::Runtime;
 
+pub use config::*;
+pub use channels::*;
+pub use router::ChannelRouter;
 pub use error::{NotificationError, Result};
 pub use hooks::*;
+pub use web::start_web_server;
 
 /// JSON input structure received from Claude Code hooks
 #[derive(Debug, Deserialize, Serialize)]
@@ -107,7 +118,191 @@ impl SoundSystem {
     }
 }
 
-/// Handle a hook input with optional sound
+/// Channel manager for multi-channel notification dispatch
+///
+/// The ChannelManager coordinates notification delivery across multiple channels,
+/// applying routing rules and handling errors gracefully.
+pub struct ChannelManager {
+    registry: ChannelRegistry,
+    config: AppConfig,
+    router: ChannelRouter,
+}
+
+impl ChannelManager {
+    /// Create a new channel manager by loading configuration
+    pub fn load() -> Result<Self> {
+        let config = load_config()?;
+        Self::from_config(config)
+    }
+
+    /// Create a new channel manager from a specific configuration
+    pub fn from_config(config: AppConfig) -> Result<Self> {
+        let registry = ChannelRegistry::new();
+        let router = ChannelRouter::new(&config);
+
+        Ok(Self {
+            registry,
+            config,
+            router,
+        })
+    }
+
+    /// Send notification through appropriate channels
+    ///
+    /// This method determines which channels should receive the notification
+    /// based on routing rules and sends to all matched channels in parallel.
+    pub fn send_notification(&self, input: &HookInput) -> Result<()> {
+        let runtime = Runtime::new()?;
+        runtime.block_on(self.send_notification_async(input))
+    }
+
+    /// Send notification through appropriate channels (async version)
+    pub async fn send_notification_async(&self, input: &HookInput) -> Result<()> {
+        // Match channels based on routing rules
+        let matched_channels = self.router.match_channels(input, &self.config)?;
+
+        // Wrap input in Arc for safe sharing across tasks
+        let input = Arc::new(input.clone());
+
+        // Send to all matched channels in parallel
+        let mut tasks = Vec::new();
+
+        for channel_id in matched_channels {
+            // Get channel configuration
+            let channel_config = self.config.channels.get(&channel_id)
+                .cloned()
+                .unwrap_or_default();
+
+            // Get the channel type from config (defaults to channel_id for backward compatibility)
+            let channel_type = if channel_config.channel_type.is_empty() {
+                channel_id.clone()
+            } else {
+                channel_config.channel_type.clone()
+            };
+
+            // Create a new channel instance based on channel_type
+            if let Some(channel) = self.registry.create_channel(&channel_type) {
+                // Skip disabled channels
+                if !channel.is_enabled(&channel_config) {
+                    continue;
+                }
+
+                let input = Arc::clone(&input);
+
+                tasks.push(tokio::spawn(async move {
+                    let result = channel.send(&*input, &channel_config).await;
+                    (channel_id, result)
+                }));
+            }
+        }
+
+        // Wait for all tasks with timeout (2 seconds - system channel is instant, webhooks run in background)
+        if tasks.is_empty() {
+            eprintln!("Warning: No enabled channels found for notification");
+            return Ok(());
+        }
+
+        let results = tokio::time::timeout(
+            Duration::from_secs(2),
+            futures::future::join_all(tasks),
+        ).await;
+
+        match results {
+            Ok(task_results) => {
+                // Log errors but don't fail on partial failures
+                for task_result in task_results {
+                    if let Ok((channel_type, result)) = task_result {
+                        if let Err(e) = result {
+                            eprintln!("Channel {} error: {}", channel_type, e);
+                        }
+                    }
+                }
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("Timeout waiting for channels: {}", e);
+                Ok(()) // Don't fail on timeout
+            }
+        }
+    }
+
+    /// Send notification to specific channels (bypasses routing rules)
+    pub fn send_to_channels(&self, input: &HookInput, channel_ids: Vec<String>) -> Result<()> {
+        let runtime = Runtime::new()?;
+        runtime.block_on(self.send_to_channels_async(input, channel_ids))
+    }
+
+    /// Send notification to specific channels (async version)
+    pub async fn send_to_channels_async(&self, input: &HookInput, channel_ids: Vec<String>) -> Result<()> {
+        // Deduplicate channels
+        let channel_ids = self.router.override_channels(channel_ids);
+
+        // Wrap input in Arc for safe sharing across tasks
+        let input = Arc::new(input.clone());
+
+        let mut tasks = Vec::new();
+
+        for channel_id in channel_ids {
+            // Get channel configuration
+            let channel_config = self.config.channels.get(&channel_id)
+                .cloned()
+                .unwrap_or_default();
+
+            // Get the channel type from config (defaults to channel_id for backward compatibility)
+            let channel_type = if channel_config.channel_type.is_empty() {
+                channel_id.clone()
+            } else {
+                channel_config.channel_type.clone()
+            };
+
+            // Create a new channel instance based on channel_type
+            if let Some(channel) = self.registry.create_channel(&channel_type) {
+                // Skip disabled channels
+                if !channel.is_enabled(&channel_config) {
+                    eprintln!("Warning: Channel {} is not enabled", channel_id);
+                    continue;
+                }
+
+                let input = Arc::clone(&input);
+
+                tasks.push(tokio::spawn(async move {
+                    let result = channel.send(&*input, &channel_config).await;
+                    (channel_id, result)
+                }));
+            }
+        }
+
+        // Wait for all tasks with timeout (2 seconds - system channel is instant, webhooks run in background)
+        if tasks.is_empty() {
+            eprintln!("Warning: No valid channels specified");
+            return Ok(());
+        }
+
+        let results = tokio::time::timeout(
+            Duration::from_secs(2),
+            futures::future::join_all(tasks),
+        ).await;
+
+        match results {
+            Ok(task_results) => {
+                for task_result in task_results {
+                    if let Ok((channel_type, result)) = task_result {
+                        if let Err(e) = result {
+                            eprintln!("Channel {} error: {}", channel_type, e);
+                        }
+                    }
+                }
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("Timeout waiting for channels: {}", e);
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Handle a hook input with optional sound (legacy mode for backward compatibility)
 ///
 /// This function displays appropriate notifications based on the hook type
 /// and optionally plays a sound in parallel.
