@@ -7,13 +7,13 @@ Practical examples of using `claude-code-notifications` in different scenarios.
 ### Command Line Interface
 ```bash
 # Basic usage (reads JSON from stdin)
-echo '{"session_id":"abc123","transcript_path":"/tmp/transcript.md","message":"Task completed","title":"Claude Code"}' | claude-code-notifications
+echo '{"session_id":"abc123","transcript_path":"/tmp/transcript.md","message":"Task completed"}' | claude-code-notifications
 
 # With system sound
-echo '{"session_id":"abc123","transcript_path":"/tmp/transcript.md","message":"Task completed with sound","title":"Notification"}' | claude-code-notifications --sound Glass
+echo '{"session_id":"abc123","transcript_path":"/tmp/transcript.md","message":"Task completed with sound"}' | claude-code-notifications --sound Glass
 
 # With custom sound file
-echo '{"session_id":"abc123","transcript_path":"/tmp/transcript.md","message":"Custom sound alert","title":"Alert"}' | claude-code-notifications --sound /path/to/alert.wav
+echo '{"session_id":"abc123","transcript_path":"/tmp/transcript.md","message":"Custom sound alert"}' | claude-code-notifications --sound /path/to/alert.wav
 ```
 
 ### File Input
@@ -82,21 +82,19 @@ claude-code-notifications --sound Submarine < notification.json
 
 send_notification() {
     local message="$1"
-    local title="${2:-Claude Code}"
 
     cat << EOF | claude-code-notifications --sound Glass
 {
   "session_id": "shell-script-$(date +%s)",
   "transcript_path": "/tmp/script.log",
-  "message": "$message",
-  "title": "$title"
+  "message": "$message"
 }
 EOF
 }
 
 # Usage
-send_notification "Backup completed successfully" "Backup Script"
-send_notification "Build failed with errors" "Build System"
+send_notification "Backup completed successfully"
+send_notification "Build failed with errors"
 ```
 
 ### Python Integration
@@ -107,14 +105,13 @@ send_notification "Build failed with errors" "Build System"
 import json
 import subprocess
 
-def send_notification(message, title="Claude Code", sound="Glass"):
+def send_notification(message, sound="Glass"):
     """Send desktop notification from Python."""
 
     notification_data = {
         "session_id": f"python-{hash(message)}",
         "transcript_path": "/tmp/python-notification.log",
-        "message": message,
-        "title": title
+        "message": message
     }
 
     json_input = json.dumps(notification_data)
@@ -137,8 +134,8 @@ def send_notification(message, title="Claude Code", sound="Glass"):
 
 # Usage
 if __name__ == "__main__":
-    send_notification("Python script completed", "Python Script", "Submarine")
-    send_notification("Error detected in processing", "Error Alert", "Basso")
+    send_notification("Python script completed", "Submarine")
+    send_notification("Error detected in processing", "Basso")
 ```
 
 ### Automated Workflow
@@ -152,21 +149,21 @@ echo "Starting automated workflow..."
 process_data() {
     echo "Processing data..."
     sleep 2
-    echo '{"session_id":"workflow-1","transcript_path":"/tmp/workflow.log","message":"Data processing completed","title":"Workflow Step 1"}' | claude-code-notifications --sound Ping
+    echo '{"session_id":"workflow-1","transcript_path":"/tmp/workflow.log","message":"Data processing completed"}' | claude-code-notifications --sound Ping
 }
 
 # Step 2: Generate reports
 generate_reports() {
     echo "Generating reports..."
     sleep 3
-    echo '{"session_id":"workflow-2","transcript_path":"/tmp/workflow.log","message":"Report generation completed","title":"Workflow Step 2"}' | claude-code-notifications --sound Ping
+    echo '{"session_id":"workflow-2","transcript_path":"/tmp/workflow.log","message":"Report generation completed"}' | claude-code-notifications --sound Ping
 }
 
 # Step 3: Upload results
 upload_results() {
     echo "Uploading results..."
     sleep 2
-    echo '{"session_id":"workflow-3","transcript_path":"/tmp/workflow.log","message":"Results uploaded successfully","title":"Workflow Complete"}' | claude-code-notifications --sound Glass
+    echo '{"session_id":"workflow-3","transcript_path":"/tmp/workflow.log","message":"Results uploaded successfully"}' | claude-code-notifications --sound Glass
 }
 
 # Execute workflow
@@ -224,7 +221,7 @@ send_notification_safe() {
 }
 
 # Usage - script continues even if notification fails
-send_notification_safe '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Important message","title":"Alert"}' "Glass"
+send_notification_safe '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Important message"}' "Glass"
 
 # Important processing continues...
 echo "Continuing with important work..."

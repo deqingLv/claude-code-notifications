@@ -101,8 +101,7 @@ The CLI receives JSON via stdin with the following structure:
 {
   "session_id": "string - Claude session identifier",
   "transcript_path": "string? - Optional path to session transcript file",
-  "message": "string - Notification body text",
-  "title": "string? - Optional notification title (defaults to 'Claude Code')"
+  "message": "string - Notification body text"
 }
 ```
 
@@ -251,13 +250,13 @@ make help
 
 ```bash
 # Test with default sound
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Test notification","title":"Test Title"}' | cargo run
+echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Test notification"}' | cargo run
 
 # Test with system sound
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Submarine sound test","title":"Sound Test"}' | cargo run -- --sound Submarine
+echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Submarine sound test"}' | cargo run -- --sound Submarine
 
 # Test with custom sound
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Custom sound test","title":"Custom Test"}' | cargo run -- --sound ./assets/notification.wav
+echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Custom sound test"}' | cargo run -- --sound ./assets/notification.wav
 ```
 
 ## Architecture

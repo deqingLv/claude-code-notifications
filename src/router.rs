@@ -58,7 +58,7 @@ impl ChannelRouter {
     fn matches_rule(&self, input: &HookInput, rule: &RoutingRule) -> Result<bool> {
         // Check hook type match
         if !rule.match_conditions.hook_types.is_empty() {
-            let hook_type_str = format!("{:?}", input.hook_type);
+            let hook_type_str = format!("{:?}", input.hook_event_name);
             if !rule.match_conditions.hook_types.contains(&hook_type_str) {
                 return Ok(false);
             }
@@ -97,20 +97,8 @@ impl ChannelRouter {
         match &input.data {
             HookData::Notification(data) => data.message.clone(),
             HookData::PreToolUse(data) => data.tool_name.clone(),
-            HookData::Stop(data) => {
-                if data.stop_hook_active.unwrap_or(false) {
-                    "Claude continuing (stop hook active)".to_string()
-                } else {
-                    "Claude stopped".to_string()
-                }
-            }
-            HookData::SubagentStop(data) => {
-                if data.stop_hook_active.unwrap_or(false) {
-                    "Subagent continuing (stop hook active)".to_string()
-                } else {
-                    "Subagent stopped".to_string()
-                }
-            }
+            HookData::Stop(_data) => "Claude stopped".to_string(),
+            HookData::SubagentStop(_data) => "Subagent stopped".to_string(),
         }
     }
 

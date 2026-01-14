@@ -148,16 +148,25 @@ claude-code-notifications init --config /path/to/config.json
 }
 ```
 
-### JSON Input Schema
+### Hook Input Schema
 
-参考：https://code.claude.com/docs/en/hooks#hook-input
-所有的hook input有公共的结构体内容，不同类型的hook也有各自差异的部分
+Hooks receive JSON data via stdin containing session information and event-specific data:
 
-The hook receives structured JSON input via stdin. The program supports both the new unified hook format and the legacy Notification format for backward compatibility.
+```json
+{
+  // Common fields
+  session_id: string
+  transcript_path: string  // Path to conversation JSON
+  cwd: string              // The current working directory when the hook is invoked
+  permission_mode: string  // Current permission mode: "default", "plan", "acceptEdits", "dontAsk", or "bypassPermissions"
 
+  // Event-specific fields
+  hook_event_name: string
+  ...
+}
+```
 
-
-**Note:** The program supports both `hook_type` and `hook_event_name` as field names for compatibility. Only fields relevant to the specific hook type need to be included. For example, a PreToolUse hook should include `hook_type: "PreToolUse"`, `session_id`, and `tool_name`.
+具体类型的hook差异，可以直接查阅：https://code.claude.com/docs/en/hooks#hook-input
 
 
 ## CLI Parameters and Sound System
@@ -189,7 +198,7 @@ The `--sound` parameter supports intelligent path resolution:
 cargo run
 
 # Run with custom sound for testing
-echo '{"session_id":"dev","transcript_path":"/tmp/dev.md","message":"Development test","title":"Dev Test"}' | cargo run -- --sound Submarine
+echo '{"session_id":"dev","transcript_path":"/tmp/dev.md","message":"Development test"}' | cargo run -- --sound Submarine
 ```
 
 **Testing and Quality Assurance:**
@@ -211,20 +220,20 @@ make test && make fmt && make clippy
 
 **Basic Functionality Testing:**
 ```bash
-# Test default configuration (legacy Notification format)
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Default notification test","title":"Basic Test"}' | cargo run
+# Test default configuration (Notification hook)
+echo '{"hook_event_name":"Notification","session_id":"test","transcript_path":"/tmp/test.md","message":"Default notification test"}' | cargo run
 
 # Test system sound variants
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"System sound test","title":"Sound Test"}' | cargo run -- --sound Glass
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Submarine sound test","title":"Sound Test"}' | cargo run -- --sound Submarine
+echo '{"hook_event_name":"Notification","session_id":"test","transcript_path":"/tmp/test.md","message":"System sound test"}' | cargo run -- --sound Glass
+echo '{"hook_event_name":"Notification","session_id":"test","transcript_path":"/tmp/test.md","message":"Submarine sound test"}' | cargo run -- --sound Submarine
 
 # Test custom audio files
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Custom sound test","title":"Custom Test"}' | cargo run -- --sound ./366102__original_sound__confirmation-upward.wav
+echo '{"hook_event_name":"Notification","session_id":"test","transcript_path":"/tmp/test.md","message":"Custom sound test"}' | cargo run -- --sound ./366102__original_sound__confirmation-upward.wav
 
-# Test new hook types with unified format
-echo '{"hook_type":"PreToolUse","session_id":"test","transcript_path":"/tmp/test.md","tool_name":"ExitPlanMode"}' | cargo run -- --sound Pop
-echo '{"hook_type":"Stop","session_id":"test","transcript_path":"/tmp/test.md","reason":"User requested stop"}' | cargo run -- --sound Blow
-echo '{"hook_type":"SubagentStop","session_id":"test","transcript_path":"/tmp/test.md","subagent_id":"agent-123","reason":"Task completed"}' | cargo run -- --sound Sosumi
+# Test other hook types with unified format
+echo '{"hook_event_name":"PreToolUse","session_id":"test","transcript_path":"/tmp/test.md","tool_name":"ExitPlanMode"}' | cargo run -- --sound Pop
+echo '{"hook_event_name":"Stop","session_id":"test","transcript_path":"/tmp/test-transcript.jsonl"}' | cargo run -- --sound Blow
+echo '{"hook_event_name":"SubagentStop","session_id":"test","transcript_path":"/tmp/test-transcript.jsonl"}' | cargo run -- --sound Sosumi
 ```
 
 **Error Handling Testing:**
@@ -232,8 +241,8 @@ echo '{"hook_type":"SubagentStop","session_id":"test","transcript_path":"/tmp/te
 # Test invalid JSON handling
 echo '{"invalid": json}' | cargo run 2>&1 | head -5
 
-# Test missing sound file handling  
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Missing sound test","title":"Error Test"}' | cargo run -- --sound /nonexistent/file.wav
+# Test missing sound file handling
+echo '{"hook_event_name":"Notification","session_id":"test","transcript_path":"/tmp/test.md","message":"Missing sound test"}' | cargo run -- --sound /nonexistent/file.wav
 ```
 
 ## Architecture and Implementation

@@ -69,7 +69,7 @@ impl TemplateEngine {
     /// Build context variables from hook input
     fn build_context(&self, input: &HookInput) -> HashMap<String, String> {
         let mut ctx = HashMap::new();
-        ctx.insert("hook_type".to_string(), format!("{:?}", input.hook_type));
+        ctx.insert("hook_type".to_string(), format!("{:?}", input.hook_event_name));
         ctx.insert("session_id".to_string(), input.common.session_id.clone());
 
         if let Some(transcript_path) = &input.common.transcript_path {
@@ -87,7 +87,7 @@ impl TemplateEngine {
         crate::debug_context!(
             "TemplateEngine",
             "Building context for hook_type: {:?}",
-            input.hook_type
+            input.hook_event_name
         );
         crate::debug_context!("TemplateEngine", "Input data: {:?}", input.data);
 
@@ -110,27 +110,38 @@ impl TemplateEngine {
                     ctx.insert("tool_use_id".to_string(), tool_use_id.clone());
                 }
             }
-            HookData::Stop(data) => {
-                let message = if data.stop_hook_active.unwrap_or(false) {
-                    "Claude continuing (stop hook active)"
+            HookData::Stop(_data) => {
+                // For Stop hooks, try to analyze transcript and generate message
+                // If no transcript available or analysis fails, use default
+                let message = if let Some(transcript_path) = &input.common.transcript_path {
+                    match crate::analyzer::analyze_transcript(transcript_path) {
+                        Ok(status) => {
+                            crate::summary::generate_summary(transcript_path, status)
+                        }
+                        Err(_) => "Claude stopped generating".to_string()
+                    }
                 } else {
-                    "Claude stopped generating"
+                    "Claude stopped generating".to_string()
                 };
-                ctx.insert("message".to_string(), message.to_string());
-                if let Some(stop_hook_active) = data.stop_hook_active {
-                    ctx.insert("stop_hook_active".to_string(), stop_hook_active.to_string());
-                }
+                ctx.insert("message".to_string(), message.clone());
+                // Also provide 'reason' variable for backward compatibility with existing templates
+                ctx.insert("reason".to_string(), message);
             }
-            HookData::SubagentStop(data) => {
-                let message = if data.stop_hook_active.unwrap_or(false) {
-                    "Subagent continuing (stop hook active)"
+            HookData::SubagentStop(_data) => {
+                // For SubagentStop hooks, try to analyze transcript and generate message
+                let message = if let Some(transcript_path) = &input.common.transcript_path {
+                    match crate::analyzer::analyze_transcript(transcript_path) {
+                        Ok(status) => {
+                            crate::summary::generate_summary(transcript_path, status)
+                        }
+                        Err(_) => "Subagent stopped".to_string()
+                    }
                 } else {
-                    "Subagent stopped"
+                    "Subagent stopped".to_string()
                 };
-                ctx.insert("message".to_string(), message.to_string());
-                if let Some(stop_hook_active) = data.stop_hook_active {
-                    ctx.insert("stop_hook_active".to_string(), stop_hook_active.to_string());
-                }
+                ctx.insert("message".to_string(), message.clone());
+                // Also provide 'reason' variable for backward compatibility with existing templates
+                ctx.insert("reason".to_string(), message);
             }
         }
 

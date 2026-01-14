@@ -4,7 +4,13 @@
 //! using notify-rust, with support for sound playback via afplay on macOS.
 
 use async_trait::async_trait;
+
+#[cfg(target_os = "macos")]
+use mac_notification_sys::Notification as MacNotification;
+
+#[cfg(not(target_os = "macos"))]
 use notify_rust::Notification;
+
 use std::thread;
 
 use crate::channels::r#trait::NotificationChannel;
@@ -15,8 +21,14 @@ use crate::hooks::HookInput;
 
 use crate::{debug_context, debug_log};
 
+#[cfg(target_os = "macos")]
+use std::sync::Once;
+
 /// System notification channel implementation
 pub struct SystemChannel;
+
+#[cfg(target_os = "macos")]
+static INIT_TERMINAL_APP: Once = Once::new();
 
 impl Default for SystemChannel {
     fn default() -> Self {
@@ -26,6 +38,17 @@ impl Default for SystemChannel {
 
 impl SystemChannel {
     pub fn new() -> Self {
+        #[cfg(target_os = "macos")]
+        INIT_TERMINAL_APP.call_once(|| {
+            debug_log!("Initializing macOS notification application as Terminal.app");
+            match mac_notification_sys::set_application("com.apple.Terminal") {
+                Ok(_) => debug_log!("Successfully set notification application to Terminal.app"),
+                Err(e) => {
+                    eprintln!("Warning: Failed to set notification application to Terminal.app: {}", e)
+                }
+            }
+        });
+
         Self
     }
 
@@ -90,107 +113,55 @@ impl SystemChannel {
     fn display_notification(
         title: &str,
         body: &str,
-        timeout_ms: u64,
-        icon: Option<&str>,
+        _timeout_ms: u64, // macOS doesn't support timeout
+        _icon: Option<&str>, // Icon parameter kept for API compatibility but not used
     ) -> Result<(), NotificationError> {
         debug_context!("system", "Preparing notification");
         debug_context!("system", "Title: {}", title);
         debug_context!("system", "Body: {}", body);
-        debug_context!("system", "Timeout: {}ms", timeout_ms);
-        debug_context!("system", "Icon: {:?}", icon);
 
-        let mut notification = Notification::new();
-        notification.summary(title);
-        notification.body(body);
-        notification.timeout(notify_rust::Timeout::Milliseconds(timeout_ms as u32));
+        #[cfg(target_os = "macos")]
+        {
+            // Use mac-notification-sys with Terminal.app icon (set in new())
+            let mut notification = MacNotification::new();
+            notification.title(title);
+            if !body.is_empty() {
+                notification.message(body);
+            }
 
-        // Set icon if provided and valid
-        if let Some(icon_name) = icon {
-            debug_context!("system", "Resolving icon: {}", icon_name);
-            // Try to resolve icon path
-            if let Some(resolved_icon) = Self::resolve_icon_path(icon_name) {
-                debug_context!("system", "Icon resolved to: {}", resolved_icon);
-                notification.icon(&resolved_icon);
-            } else {
-                // If icon is "Claude Code" but not found, silently use default system icon
-                if icon_name != "Claude Code" {
-                    eprintln!("Warning: Icon not found: {}", icon_name);
+            debug_log!("Showing notification...");
+            match notification.send() {
+                Ok(_) => {
+                    debug_log!("Notification displayed successfully");
+                    Ok(())
                 }
-                debug_context!(
-                    "system",
-                    "Icon '{}' not found, using system default",
-                    icon_name
-                );
-            }
-        }
-
-        debug_log!("Showing notification...");
-        let result = notification.show();
-        match &result {
-            Ok(_) => debug_log!("Notification displayed successfully"),
-            Err(e) => debug_context!("system", "Failed to display notification: {}", e),
-        }
-        result?;
-        Ok(())
-    }
-
-    /// Resolve icon name to file path
-    fn resolve_icon_path(icon_name: &str) -> Option<String> {
-        // If it's already a path (contains / or .), check if file exists
-        if icon_name.contains('/') || icon_name.contains('.') {
-            let expanded_path = shellexpand::full(icon_name).ok()?.to_string();
-            let path = std::path::Path::new(&expanded_path);
-            if path.exists() {
-                return Some(expanded_path);
-            }
-            return None;
-        }
-
-        // Special case: "Claude Code" icon - check common locations
-        if icon_name == "Claude Code" {
-            // Check in assets directory relative to executable
-            let exe_dir = std::env::current_exe()
-                .ok()
-                .and_then(|p| p.parent().map(|p| p.to_path_buf()));
-
-            // Possible icon file names and extensions
-            let icon_files = [
-                "claude-code.png",
-                "claude-code.icns",
-                "claude-code.ico",
-                "claude.png",
-                "claude.icns",
-                "claude.ico",
-            ];
-
-            // Check multiple locations
-            let locations = [
-                // 1. Assets directory relative to executable
-                exe_dir.as_ref().map(|p| p.join("assets")),
-                // 2. Current directory
-                Some(std::env::current_dir().unwrap_or_default().join("assets")),
-                // 3. User's .claude directory
-                dirs::home_dir().map(|p| p.join(".claude")),
-                // 4. Project root (for development)
-                Some(std::path::PathBuf::from(".")),
-            ];
-
-            for location in locations.iter().flatten() {
-                for icon_file in &icon_files {
-                    let icon_path = location.join(icon_file);
-                    if icon_path.exists() {
-                        return Some(icon_path.to_string_lossy().to_string());
-                    }
+                Err(e) => {
+                    debug_context!("system", "Failed to display notification: {}", e);
+                    Err(NotificationError::SoundError(format!(
+                        "Failed to display notification: {}",
+                        e
+                    )))
                 }
             }
-
-            // Not found
-            return None;
         }
 
-        // For other icon names, treat as application name (macOS)
-        // notify-rust will handle application names on macOS
-        Some(icon_name.to_string())
+        #[cfg(not(target_os = "macos"))]
+        {
+            // Use notify-rust for other platforms
+            let mut notification = Notification::new();
+            notification.summary(title);
+            notification.body(body);
+            notification.timeout(notify_rust::Timeout::Milliseconds(timeout_ms as u32));
+
+            debug_log!("Showing notification...");
+            let result = notification.show();
+            match &result {
+                Ok(_) => debug_log!("Notification displayed successfully"),
+                Err(e) => debug_context!("system", "Failed to display notification: {}", e),
+            }
+            result?;
+            Ok(())
+        }
     }
 }
 
@@ -236,18 +207,14 @@ impl NotificationChannel for SystemChannel {
         // Use template engine to render message
         debug_context!("system", "Rendering template...");
         let template =
-            template_engine.get_template(&input.hook_type, config.message_template.as_ref());
+            template_engine.get_template(&input.hook_event_name, config.message_template.as_ref());
         let rendered = template_engine.render(&template, input);
         debug_context!("system", "Rendered title: {}", rendered.title);
         debug_context!("system", "Rendered body: {}", rendered.body);
 
-        // Get icon from config or use default Claude Code icon
-        let icon = config.icon.as_deref().or(Some("Claude Code"));
-        debug_context!("system", "Using icon: {:?}", icon);
-
-        // Display notification
+        // Display notification (icon is handled by set_application in new())
         debug_context!("system", "Calling display_notification()...");
-        Self::display_notification(&rendered.title, &rendered.body, timeout_ms, icon)
+        Self::display_notification(&rendered.title, &rendered.body, timeout_ms, None)
             .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
 
         debug_context!(

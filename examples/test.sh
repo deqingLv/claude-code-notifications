@@ -10,8 +10,7 @@ echo
 TEST_INPUT='{
   "session_id": "test-session-123",
   "transcript_path": "/tmp/test-transcript.md",
-  "message": "Test notification from automated script",
-  "title": "Test Script"
+  "message": "Test notification from automated script"
 }'
 
 echo "1. Testing with default configuration (no sound)..."

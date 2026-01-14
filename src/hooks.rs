@@ -62,19 +62,29 @@ pub struct PreToolUseData {
 }
 
 /// Data specific to Stop hooks
-#[derive(Debug, Deserialize, Serialize, Clone)]
+///
+/// According to official Claude Code hook documentation, Stop hooks only contain
+/// the common fields (session_id, transcript_path, cwd, permission_mode) with
+/// no additional data fields. The reason/message must be derived from transcript
+/// analysis.
+///
+/// This struct is kept for backwards compatibility but contains no actual data.
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct StopData {
-    /// Whether a stop hook is already active (prevents infinite loops)
     #[serde(default)]
-    pub stop_hook_active: Option<bool>,
+    _phantom: std::marker::PhantomData<()>,
 }
 
 /// Data specific to SubagentStop hooks
-#[derive(Debug, Deserialize, Serialize, Clone)]
+///
+/// According to official Claude Code hook documentation, SubagentStop hooks only
+/// contain the common fields with no additional data fields.
+///
+/// This struct is kept for backwards compatibility but contains no actual data.
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct SubagentStopData {
-    /// Whether a stop hook is already active (prevents infinite loops)
     #[serde(default)]
-    pub stop_hook_active: Option<bool>,
+    _phantom: std::marker::PhantomData<()>,
 }
 
 /// Enum representing the type-specific data for each hook type
@@ -94,14 +104,12 @@ pub enum HookData {
 /// Complete hook input structure
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HookInput {
-    /// Type of hook being invoked
-    /// Supports both "hook_type" (primary) and "hook_event_name" (alternative) field names
-    #[serde(alias = "hook_event_name")]
-    pub hook_type: HookType,
+    /// Type of hook being invoked (received as hook_event_name)
+    pub hook_event_name: HookType,
     /// Common fields present in all hook types
     #[serde(flatten)]
     pub common: CommonHookFields,
-    /// Type-specific data (depends on hook_type)
+    /// Type-specific data (depends on hook_event_name)
     #[serde(flatten)]
     pub data: HookData,
 }
@@ -115,7 +123,7 @@ impl HookInput {
         title: Option<String>,
     ) -> Self {
         Self {
-            hook_type: HookType::Notification,
+            hook_event_name: HookType::Notification,
             common: CommonHookFields {
                 session_id,
                 transcript_path,
@@ -138,7 +146,7 @@ impl HookInput {
         _context: Option<String>,
     ) -> Self {
         Self {
-            hook_type: HookType::PreToolUse,
+            hook_event_name: HookType::PreToolUse,
             common: CommonHookFields {
                 session_id,
                 transcript_path,
@@ -157,19 +165,17 @@ impl HookInput {
     pub fn stop(
         session_id: String,
         transcript_path: Option<String>,
-        _reason: Option<String>,
+        _reason: Option<String>, // Kept for backward compatibility, but not used
     ) -> Self {
         Self {
-            hook_type: HookType::Stop,
+            hook_event_name: HookType::Stop,
             common: CommonHookFields {
                 session_id,
                 transcript_path,
                 cwd: None,
                 permission_mode: None,
             },
-            data: HookData::Stop(StopData {
-                stop_hook_active: None,
-            }),
+            data: HookData::Stop(StopData::default()),
         }
     }
 
@@ -177,20 +183,18 @@ impl HookInput {
     pub fn subagent_stop(
         session_id: String,
         transcript_path: Option<String>,
-        _subagent_id: Option<String>,
-        _reason: Option<String>,
+        _subagent_id: Option<String>, // Kept for backward compatibility, but not used
+        _reason: Option<String>, // Kept for backward compatibility, but not used
     ) -> Self {
         Self {
-            hook_type: HookType::SubagentStop,
+            hook_event_name: HookType::SubagentStop,
             common: CommonHookFields {
                 session_id,
                 transcript_path,
                 cwd: None,
                 permission_mode: None,
             },
-            data: HookData::SubagentStop(SubagentStopData {
-                stop_hook_active: None,
-            }),
+            data: HookData::SubagentStop(SubagentStopData::default()),
         }
     }
 }

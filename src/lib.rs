@@ -346,7 +346,7 @@ impl ChannelManager {
 /// This function displays appropriate notifications based on the hook type
 /// and optionally plays a sound in parallel.
 pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
-    debug_context!("handle_hook", "Received hook: {:?}", input.hook_type);
+    debug_context!("handle_hook", "Received hook: {:?}", input.hook_event_name);
     debug_context!("handle_hook", "Session ID: {}", input.common.session_id);
     debug_context!(
         "handle_hook",
@@ -379,8 +379,8 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
             let body = data.tool_name.clone();
             (title, body)
         }
-        HookData::Stop(data) => {
-            // Try transcript analysis first
+        HookData::Stop(_data) => {
+            // Analyze transcript to generate message
             if let Some(transcript_path) = &input.common.transcript_path {
                 match analyzer::analyze_transcript(transcript_path) {
                     Ok(status) => {
@@ -390,28 +390,20 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
                     }
                     Err(_) => {
                         // Fall back to simple message on analysis error
-                        let title = "Claude Code - Stop";
-                        let body = if data.stop_hook_active.unwrap_or(false) {
-                            "Claude continuing (stop hook active)"
-                        } else {
-                            "Claude stopped generating"
-                        };
+                        let title = "Claude Code";
+                        let body = "Claude stopped generating";
                         (title, body.to_string())
                     }
                 }
             } else {
-                // No transcript path provided
-                let title = "Claude Code - Stop";
-                let body = if data.stop_hook_active.unwrap_or(false) {
-                    "Claude continuing (stop hook active)"
-                } else {
-                    "Claude stopped generating"
-                };
+                // No transcript path provided - use default message
+                let title = "Claude Code";
+                let body = "Claude stopped generating";
                 (title, body.to_string())
             }
         }
-        HookData::SubagentStop(data) => {
-            // Try transcript analysis first
+        HookData::SubagentStop(_data) => {
+            // Analyze transcript to generate message
             if let Some(transcript_path) = &input.common.transcript_path {
                 match analyzer::analyze_transcript(transcript_path) {
                     Ok(status) => {
@@ -421,23 +413,15 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
                     }
                     Err(_) => {
                         // Fall back to simple message on analysis error
-                        let title = "Claude Code - SubagentStop";
-                        let body = if data.stop_hook_active.unwrap_or(false) {
-                            "Subagent continuing (stop hook active)"
-                        } else {
-                            "Subagent stopped"
-                        };
+                        let title = "Claude Code";
+                        let body = "Subagent stopped";
                         (title, body.to_string())
                     }
                 }
             } else {
-                // No transcript path provided
-                let title = "Claude Code - SubagentStop";
-                let body = if data.stop_hook_active.unwrap_or(false) {
-                    "Subagent continuing (stop hook active)"
-                } else {
-                    "Subagent stopped"
-                };
+                // No transcript path provided - use default message
+                let title = "Claude Code";
+                let body = "Subagent stopped";
                 (title, body.to_string())
             }
         }

@@ -55,7 +55,7 @@ impl DingTalkChannel {
         // Use template engine to render message
         let template_engine = TemplateEngine::new(HashMap::new());
         let template =
-            template_engine.get_template(&input.hook_type, config.message_template.as_ref());
+            template_engine.get_template(&input.hook_event_name, config.message_template.as_ref());
         let rendered = template_engine.render(&template, input);
 
         Ok(DingTalkMessage {

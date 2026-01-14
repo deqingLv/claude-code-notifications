@@ -44,7 +44,7 @@ Get up and running with `claude-code-notifications` in minutes.
 
    ```bash
    # Send a test notification
-   echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Claude Code notification test","title":"Test"}' | claude-code-notifications
+   echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Claude Code notification test"}' | claude-code-notifications
    ```
 
 ## Common Configurations
@@ -96,13 +96,13 @@ Get up and running with `claude-code-notifications` in minutes.
 ### Manual Testing
 ```bash
 # Basic test
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Test message","title":"Test Title"}' | claude-code-notifications
+echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Test message"}' | claude-code-notifications
 
 # Test with sound
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Test with sound","title":"Sound Test"}' | claude-code-notifications --sound Glass
+echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Test with sound"}' | claude-code-notifications --sound Glass
 
 # Test with different system sounds
-echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Submarine test","title":"Submarine"}' | claude-code-notifications --sound Submarine
+echo '{"session_id":"test","transcript_path":"/tmp/test.md","message":"Submarine test"}' | claude-code-notifications --sound Submarine
 ```
 
 ### Run Test Script
