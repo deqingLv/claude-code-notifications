@@ -27,6 +27,10 @@ pub struct AppConfig {
     /// Global message templates
     #[serde(default)]
     pub global_templates: HashMap<String, MessageTemplate>,
+
+    /// Enable debug logging
+    #[serde(default)]
+    pub debug: bool,
 }
 
 fn default_channels() -> Vec<String> {

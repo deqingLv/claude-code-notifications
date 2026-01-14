@@ -17,8 +17,6 @@ pub enum HookType {
     Stop,
     /// Hook invoked when a subagent stops
     SubagentStop,
-    /// Hook invoked when permission dialog is shown
-    PermissionRequest,
 }
 
 /// Common fields present in all hook types
@@ -29,6 +27,12 @@ pub struct CommonHookFields {
     /// Optional path to session transcript file
     #[serde(default)]
     pub transcript_path: Option<String>,
+    /// Current working directory when hook is invoked
+    #[serde(default)]
+    pub cwd: Option<String>,
+    /// Current permission mode: "default", "plan", "acceptEdits", "dontAsk", or "bypassPermissions"
+    #[serde(default)]
+    pub permission_mode: Option<String>,
 }
 
 /// Data specific to Notification hooks
@@ -49,39 +53,28 @@ pub struct NotificationData {
 pub struct PreToolUseData {
     /// Name of the tool being invoked
     pub tool_name: String,
-    /// Optional additional context about the tool use
+    /// Tool input parameters (schema depends on the specific tool)
     #[serde(default)]
-    pub context: Option<String>,
-}
-
-/// Data specific to PermissionRequest hooks
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct PermissionRequestData {
-    /// Name of the tool requiring permission
+    pub tool_input: Option<serde_json::Value>,
+    /// Unique identifier for this tool use
     #[serde(default)]
-    pub tool_name: Option<String>,
-    /// Optional additional context about the permission request
-    #[serde(default)]
-    pub context: Option<String>,
+    pub tool_use_id: Option<String>,
 }
 
 /// Data specific to Stop hooks
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct StopData {
-    /// Optional reason for stopping
+    /// Whether a stop hook is already active (prevents infinite loops)
     #[serde(default)]
-    pub reason: Option<String>,
+    pub stop_hook_active: Option<bool>,
 }
 
 /// Data specific to SubagentStop hooks
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SubagentStopData {
-    /// Optional identifier of the subagent that stopped
+    /// Whether a stop hook is already active (prevents infinite loops)
     #[serde(default)]
-    pub subagent_id: Option<String>,
-    /// Optional reason for subagent stopping
-    #[serde(default)]
-    pub reason: Option<String>,
+    pub stop_hook_active: Option<bool>,
 }
 
 /// Enum representing the type-specific data for each hook type
@@ -96,14 +89,14 @@ pub enum HookData {
     Stop(StopData),
     /// SubagentStop-specific data
     SubagentStop(SubagentStopData),
-    /// PermissionRequest-specific data
-    PermissionRequest(PermissionRequestData),
 }
 
 /// Complete hook input structure
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HookInput {
     /// Type of hook being invoked
+    /// Supports both "hook_type" (primary) and "hook_event_name" (alternative) field names
+    #[serde(alias = "hook_event_name")]
     pub hook_type: HookType,
     /// Common fields present in all hook types
     #[serde(flatten)]
@@ -126,6 +119,8 @@ impl HookInput {
             common: CommonHookFields {
                 session_id,
                 transcript_path,
+                cwd: None,
+                permission_mode: None,
             },
             data: HookData::Notification(NotificationData {
                 message,
@@ -140,15 +135,21 @@ impl HookInput {
         session_id: String,
         transcript_path: Option<String>,
         tool_name: String,
-        context: Option<String>,
+        _context: Option<String>,
     ) -> Self {
         Self {
             hook_type: HookType::PreToolUse,
             common: CommonHookFields {
                 session_id,
                 transcript_path,
+                cwd: None,
+                permission_mode: None,
             },
-            data: HookData::PreToolUse(PreToolUseData { tool_name, context }),
+            data: HookData::PreToolUse(PreToolUseData {
+                tool_name,
+                tool_input: None,
+                tool_use_id: None,
+            }),
         }
     }
 
@@ -156,15 +157,19 @@ impl HookInput {
     pub fn stop(
         session_id: String,
         transcript_path: Option<String>,
-        reason: Option<String>,
+        _reason: Option<String>,
     ) -> Self {
         Self {
             hook_type: HookType::Stop,
             common: CommonHookFields {
                 session_id,
                 transcript_path,
+                cwd: None,
+                permission_mode: None,
             },
-            data: HookData::Stop(StopData { reason }),
+            data: HookData::Stop(StopData {
+                stop_hook_active: None,
+            }),
         }
     }
 
@@ -172,36 +177,20 @@ impl HookInput {
     pub fn subagent_stop(
         session_id: String,
         transcript_path: Option<String>,
-        subagent_id: Option<String>,
-        reason: Option<String>,
+        _subagent_id: Option<String>,
+        _reason: Option<String>,
     ) -> Self {
         Self {
             hook_type: HookType::SubagentStop,
             common: CommonHookFields {
                 session_id,
                 transcript_path,
+                cwd: None,
+                permission_mode: None,
             },
             data: HookData::SubagentStop(SubagentStopData {
-                subagent_id,
-                reason,
+                stop_hook_active: None,
             }),
-        }
-    }
-
-    /// Create a PermissionRequest hook input (for testing)
-    pub fn permission_request(
-        session_id: String,
-        transcript_path: Option<String>,
-        tool_name: Option<String>,
-        context: Option<String>,
-    ) -> Self {
-        Self {
-            hook_type: HookType::PermissionRequest,
-            common: CommonHookFields {
-                session_id,
-                transcript_path,
-            },
-            data: HookData::PermissionRequest(PermissionRequestData { tool_name, context }),
         }
     }
 }

@@ -3,7 +3,7 @@
 //! This module defines the core abstraction for notification channels.
 //! All notification channels must implement the NotificationChannel trait.
 
-use crate::config::ChannelConfig;
+use crate::config::{ChannelConfig, TemplateEngine};
 use crate::error::{ChannelError, NotificationError};
 use crate::hooks::HookInput;
 use async_trait::async_trait;
@@ -42,7 +42,12 @@ pub trait NotificationChannel: Send + Sync {
     /// Send a notification through this channel
     /// This method should return immediately after dispatching the notification
     /// and handle errors gracefully without blocking
-    async fn send(&self, input: &HookInput, config: &ChannelConfig) -> ChannelResult<()>;
+    async fn send(
+        &self,
+        input: &HookInput,
+        config: &ChannelConfig,
+        template_engine: &TemplateEngine,
+    ) -> ChannelResult<()>;
 
     /// Optional: Test the channel connection
     /// This is useful for verifying configuration in the web UI
@@ -74,7 +79,12 @@ mod tests {
             "Mock Channel"
         }
 
-        async fn send(&self, _input: &HookInput, _config: &ChannelConfig) -> ChannelResult<()> {
+        async fn send(
+            &self,
+            _input: &HookInput,
+            _config: &ChannelConfig,
+            _template_engine: &TemplateEngine,
+        ) -> ChannelResult<()> {
             Ok(())
         }
     }

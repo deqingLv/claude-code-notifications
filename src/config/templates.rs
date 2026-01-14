@@ -34,18 +34,32 @@ impl TemplateEngine {
         hook_type: &HookType,
         channel_template: Option<&MessageTemplate>,
     ) -> MessageTemplate {
+        crate::debug_context!(
+            "TemplateEngine",
+            "Getting template for hook_type: {:?}",
+            hook_type
+        );
+
         // Prefer channel-specific template
         if let Some(template) = channel_template {
+            crate::debug_context!("TemplateEngine", "Using channel-specific template");
             return template.clone();
         }
 
         // Fall back to hook type specific template
         let hook_type_str = format!("{:?}", hook_type);
+        crate::debug_context!(
+            "TemplateEngine",
+            "Looking for hook_type template: {}",
+            hook_type_str
+        );
         if let Some(template) = self.global_templates.get(&hook_type_str) {
+            crate::debug_context!("TemplateEngine", "Found hook_type template: {:?}", template);
             return template.clone();
         }
 
         // Fall back to default template
+        crate::debug_context!("TemplateEngine", "Using default template");
         self.global_templates
             .get("default")
             .cloned()
@@ -62,6 +76,21 @@ impl TemplateEngine {
             ctx.insert("transcript_path".to_string(), transcript_path.clone());
         }
 
+        if let Some(cwd) = &input.common.cwd {
+            ctx.insert("cwd".to_string(), cwd.clone());
+        }
+
+        if let Some(permission_mode) = &input.common.permission_mode {
+            ctx.insert("permission_mode".to_string(), permission_mode.clone());
+        }
+
+        crate::debug_context!(
+            "TemplateEngine",
+            "Building context for hook_type: {:?}",
+            input.hook_type
+        );
+        crate::debug_context!("TemplateEngine", "Input data: {:?}", input.data);
+
         // Add hook-type specific variables
         match &input.data {
             HookData::Notification(data) => {
@@ -73,59 +102,34 @@ impl TemplateEngine {
             HookData::PreToolUse(data) => {
                 ctx.insert("tool_name".to_string(), data.tool_name.clone());
                 // Add 'message' for compatibility with default templates
-                let message = data
-                    .context
-                    .as_deref()
-                    .unwrap_or(&data.tool_name)
-                    .to_string();
-                ctx.insert("message".to_string(), message);
-                if let Some(context) = &data.context {
-                    ctx.insert("context".to_string(), context.clone());
+                ctx.insert("message".to_string(), data.tool_name.clone());
+                if let Some(tool_input) = &data.tool_input {
+                    ctx.insert("tool_input".to_string(), tool_input.to_string());
+                }
+                if let Some(tool_use_id) = &data.tool_use_id {
+                    ctx.insert("tool_use_id".to_string(), tool_use_id.clone());
                 }
             }
             HookData::Stop(data) => {
-                // Add both 'message' and 'reason' for compatibility
-                let message = data
-                    .reason
-                    .as_deref()
-                    .unwrap_or("Claude stopped generating")
-                    .to_string();
-                ctx.insert("message".to_string(), message.clone());
-                if let Some(reason) = &data.reason {
-                    ctx.insert("reason".to_string(), reason.clone());
+                let message = if data.stop_hook_active.unwrap_or(false) {
+                    "Claude continuing (stop hook active)"
+                } else {
+                    "Claude stopped generating"
+                };
+                ctx.insert("message".to_string(), message.to_string());
+                if let Some(stop_hook_active) = data.stop_hook_active {
+                    ctx.insert("stop_hook_active".to_string(), stop_hook_active.to_string());
                 }
             }
             HookData::SubagentStop(data) => {
-                // Add both 'message' and 'reason' for compatibility
-                let message = if let (Some(id), Some(reason)) = (&data.subagent_id, &data.reason) {
-                    format!("Subagent {} stopped: {}", id, reason)
-                } else if let Some(reason) = &data.reason {
-                    format!("Subagent stopped: {}", reason)
-                } else if let Some(id) = &data.subagent_id {
-                    format!("Subagent {} stopped", id)
+                let message = if data.stop_hook_active.unwrap_or(false) {
+                    "Subagent continuing (stop hook active)"
                 } else {
-                    "Subagent stopped".to_string()
+                    "Subagent stopped"
                 };
-                ctx.insert("message".to_string(), message);
-                if let Some(subagent_id) = &data.subagent_id {
-                    ctx.insert("subagent_id".to_string(), subagent_id.clone());
-                }
-                if let Some(reason) = &data.reason {
-                    ctx.insert("reason".to_string(), reason.clone());
-                }
-            }
-            HookData::PermissionRequest(data) => {
-                let message = if let Some(tool_name) = &data.tool_name {
-                    format!("Claude requests permission to use {}", tool_name)
-                } else {
-                    "Claude requests permission to execute a tool".to_string()
-                };
-                ctx.insert("message".to_string(), message);
-                if let Some(tool_name) = &data.tool_name {
-                    ctx.insert("tool_name".to_string(), tool_name.clone());
-                }
-                if let Some(context) = &data.context {
-                    ctx.insert("context".to_string(), context.clone());
+                ctx.insert("message".to_string(), message.to_string());
+                if let Some(stop_hook_active) = data.stop_hook_active {
+                    ctx.insert("stop_hook_active".to_string(), stop_hook_active.to_string());
                 }
             }
         }
@@ -214,7 +218,7 @@ mod tests {
         let rendered = engine.render(&template, &input);
 
         assert_eq!(rendered.title, "Tool: ExitPlanMode");
-        assert_eq!(rendered.body, "Exiting plan mode");
+        assert_eq!(rendered.body, "{{context}}");
     }
 
     #[test]

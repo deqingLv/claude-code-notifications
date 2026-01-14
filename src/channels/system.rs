@@ -13,6 +13,8 @@ use crate::config::ChannelConfig;
 use crate::error::{ChannelError, NotificationError};
 use crate::hooks::HookInput;
 
+use crate::{debug_context, debug_log};
+
 /// System notification channel implementation
 pub struct SystemChannel;
 
@@ -91,6 +93,12 @@ impl SystemChannel {
         timeout_ms: u64,
         icon: Option<&str>,
     ) -> Result<(), NotificationError> {
+        debug_context!("system", "Preparing notification");
+        debug_context!("system", "Title: {}", title);
+        debug_context!("system", "Body: {}", body);
+        debug_context!("system", "Timeout: {}ms", timeout_ms);
+        debug_context!("system", "Icon: {:?}", icon);
+
         let mut notification = Notification::new();
         notification.summary(title);
         notification.body(body);
@@ -98,18 +106,31 @@ impl SystemChannel {
 
         // Set icon if provided and valid
         if let Some(icon_name) = icon {
+            debug_context!("system", "Resolving icon: {}", icon_name);
             // Try to resolve icon path
             if let Some(resolved_icon) = Self::resolve_icon_path(icon_name) {
+                debug_context!("system", "Icon resolved to: {}", resolved_icon);
                 notification.icon(&resolved_icon);
             } else {
                 // If icon is "Claude Code" but not found, silently use default system icon
                 if icon_name != "Claude Code" {
                     eprintln!("Warning: Icon not found: {}", icon_name);
                 }
+                debug_context!(
+                    "system",
+                    "Icon '{}' not found, using system default",
+                    icon_name
+                );
             }
         }
 
-        notification.show()?;
+        debug_log!("Showing notification...");
+        let result = notification.show();
+        match &result {
+            Ok(_) => debug_log!("Notification displayed successfully"),
+            Err(e) => debug_context!("system", "Failed to display notification: {}", e),
+        }
+        result?;
         Ok(())
     }
 
@@ -199,26 +220,46 @@ impl NotificationChannel for SystemChannel {
         Ok(())
     }
 
-    async fn send(&self, input: &HookInput, config: &ChannelConfig) -> Result<(), ChannelError> {
+    async fn send(
+        &self,
+        input: &HookInput,
+        config: &ChannelConfig,
+        template_engine: &TemplateEngine,
+    ) -> Result<(), ChannelError> {
+        debug_context!("system", "send() called");
+        let start = std::time::Instant::now();
+
         // Get timeout from config or use default
         let timeout_ms = config.timeout_ms.unwrap_or(5000);
+        debug_context!("system", "Timeout: {}ms", timeout_ms);
 
         // Use template engine to render message
-        let template_engine = TemplateEngine::new(std::collections::HashMap::new());
+        debug_context!("system", "Rendering template...");
         let template =
             template_engine.get_template(&input.hook_type, config.message_template.as_ref());
         let rendered = template_engine.render(&template, input);
+        debug_context!("system", "Rendered title: {}", rendered.title);
+        debug_context!("system", "Rendered body: {}", rendered.body);
 
         // Get icon from config or use default Claude Code icon
         let icon = config.icon.as_deref().or(Some("Claude Code"));
+        debug_context!("system", "Using icon: {:?}", icon);
 
         // Display notification
+        debug_context!("system", "Calling display_notification()...");
         Self::display_notification(&rendered.title, &rendered.body, timeout_ms, icon)
             .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+
+        debug_context!(
+            "system",
+            "display_notification() completed in {:?}",
+            start.elapsed()
+        );
 
         // Play sound if configured
         if let Some(sound) = &config.sound {
             if !sound.is_empty() {
+                debug_context!("system", "Playing sound: {}", sound);
                 let sound = sound.clone();
                 thread::spawn(move || {
                     if let Err(e) = Self::play_sound(&sound) {
@@ -228,6 +269,7 @@ impl NotificationChannel for SystemChannel {
             }
         }
 
+        debug_context!("system", "send() completed in {:?}", start.elapsed());
         Ok(())
     }
 
@@ -242,7 +284,8 @@ impl NotificationChannel for SystemChannel {
             Some("System Notification Test".to_string()),
         );
 
-        self.send(&test_input, config).await?;
+        let template_engine = TemplateEngine::new(std::collections::HashMap::new());
+        self.send(&test_input, config, &template_engine).await?;
         Ok("System notification sent successfully".to_string())
     }
 }
@@ -333,7 +376,8 @@ mod tests {
 
         // This will display an actual notification in tests
         // In production, you might want to mock this
-        let result = channel.send(&input, &config).await;
+        let template_engine = TemplateEngine::new(std::collections::HashMap::new());
+        let result = channel.send(&input, &config, &template_engine).await;
         #[cfg(not(target_os = "macos"))]
         assert!(result.is_err()); // notify-rust might not work on all platforms in tests
 

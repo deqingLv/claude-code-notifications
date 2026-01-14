@@ -97,16 +97,20 @@ impl ChannelRouter {
         match &input.data {
             HookData::Notification(data) => data.message.clone(),
             HookData::PreToolUse(data) => data.tool_name.clone(),
-            HookData::PermissionRequest(data) => data
-                .tool_name
-                .clone()
-                .unwrap_or_else(|| "Permission request".to_string()),
-            HookData::Stop(data) => data.reason.as_deref().unwrap_or("").to_string(),
-            HookData::SubagentStop(data) => data
-                .reason
-                .as_deref()
-                .unwrap_or("Subagent stopped")
-                .to_string(),
+            HookData::Stop(data) => {
+                if data.stop_hook_active.unwrap_or(false) {
+                    "Claude continuing (stop hook active)".to_string()
+                } else {
+                    "Claude stopped".to_string()
+                }
+            }
+            HookData::SubagentStop(data) => {
+                if data.stop_hook_active.unwrap_or(false) {
+                    "Subagent continuing (stop hook active)".to_string()
+                } else {
+                    "Subagent stopped".to_string()
+                }
+            }
         }
     }
 
@@ -145,6 +149,7 @@ mod tests {
             channels,
             routing_rules: vec![],
             global_templates: HashMap::new(),
+            debug: false,
         }
     }
 

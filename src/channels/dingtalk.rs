@@ -97,7 +97,12 @@ impl NotificationChannel for DingTalkChannel {
         Ok(())
     }
 
-    async fn send(&self, input: &HookInput, config: &ChannelConfig) -> Result<(), ChannelError> {
+    async fn send(
+        &self,
+        input: &HookInput,
+        config: &ChannelConfig,
+        _template_engine: &TemplateEngine,
+    ) -> Result<(), ChannelError> {
         let webhook_url = config
             .webhook_url
             .as_ref()

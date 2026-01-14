@@ -85,7 +85,8 @@ pub fn default_config() -> AppConfig {
                 "title": "Claude Stopped",
                 "body": "{{reason}}"
             }
-        }
+        },
+        "debug": false
     });
     serde_json::from_value(value).expect("Default config should be valid")
 }

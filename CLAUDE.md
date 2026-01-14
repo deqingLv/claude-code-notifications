@@ -150,34 +150,15 @@ claude-code-notifications init --config /path/to/config.json
 
 ### JSON Input Schema
 
+参考：https://code.claude.com/docs/en/hooks#hook-input
+所有的hook input有公共的结构体内容，不同类型的hook也有各自差异的部分
+
 The hook receives structured JSON input via stdin. The program supports both the new unified hook format and the legacy Notification format for backward compatibility.
 
-**New Unified Hook Format (recommended):**
-```json
-{
-  "hook_type": "Notification | PreToolUse | Stop | SubagentStop",
-  "session_id": "string - Claude session identifier",
-  "transcript_path": "string? - Optional path to session transcript file",
-  "message": "string - Required for Notification hooks: notification body text",
-  "title": "string? - Optional for Notification hooks: notification title (defaults to 'Claude Code')",
-  "tool_name": "string - Required for PreToolUse hooks: name of tool being invoked",
-  "context": "string? - Optional for PreToolUse hooks: additional context about tool use",
-  "reason": "string? - Optional for Stop hooks: reason for stopping",
-  "subagent_id": "string? - Optional for SubagentStop hooks: identifier of subagent that stopped"
-}
-```
 
-**Note:** Only fields relevant to the specific hook type need to be included. For example, a PreToolUse hook should include `hook_type: "PreToolUse"`, `session_id`, and `tool_name`.
 
-**Legacy Notification Format (backward compatible):**
-```json
-{
-  "session_id": "string - Claude session identifier",
-  "transcript_path": "string? - Optional path to session transcript file",
-  "message": "string - Notification body text",
-  "title": "string? - Optional notification title (defaults to 'Claude Code')"
-}
-```
+**Note:** The program supports both `hook_type` and `hook_event_name` as field names for compatibility. Only fields relevant to the specific hook type need to be included. For example, a PreToolUse hook should include `hook_type: "PreToolUse"`, `session_id`, and `tool_name`.
+
 
 ## CLI Parameters and Sound System
 

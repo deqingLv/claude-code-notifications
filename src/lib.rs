@@ -9,6 +9,7 @@ mod channels;
 mod config;
 mod error;
 mod hooks;
+mod logging;
 mod router;
 mod summary;
 mod transcript;
@@ -139,6 +140,8 @@ impl ChannelManager {
     /// Create a new channel manager by loading configuration
     pub fn load() -> Result<Self> {
         let config = load_config()?;
+        logging::init_debug(&config);
+        debug_log!("Configuration loaded, debug mode: {}", config.debug);
         Self::from_config(config)
     }
 
@@ -165,11 +168,19 @@ impl ChannelManager {
 
     /// Send notification through appropriate channels (async version)
     pub async fn send_notification_async(&self, input: &HookInput) -> Result<()> {
+        debug_context!("ChannelManager", "send_notification_async() called");
+        let start = std::time::Instant::now();
+
         // Match channels based on routing rules
         let matched_channels = self.router.match_channels(input, &self.config)?;
+        debug_context!("ChannelManager", "Matched channels: {:?}", matched_channels);
+
+        // Create template engine with global templates
+        let template_engine = TemplateEngine::new(self.config.global_templates.clone());
 
         // Wrap input in Arc for safe sharing across tasks
         let input = Arc::new(input.clone());
+        let template_engine = Arc::new(template_engine);
 
         // Send to all matched channels in parallel
         let mut tasks = Vec::new();
@@ -198,9 +209,12 @@ impl ChannelManager {
                 }
 
                 let input = Arc::clone(&input);
+                let template_engine = Arc::clone(&template_engine);
 
                 tasks.push(tokio::spawn(async move {
-                    let result = channel.send(&input, &channel_config).await;
+                    let result = channel
+                        .send(&input, &channel_config, &template_engine)
+                        .await;
                     (channel_id, result)
                 }));
             }
@@ -221,12 +235,21 @@ impl ChannelManager {
                 for (channel_type, result) in task_results.into_iter().flatten() {
                     if let Err(e) = result {
                         eprintln!("Channel {} error: {}", channel_type, e);
+                        debug_context!("ChannelManager", "Channel {} error: {}", channel_type, e);
+                    } else {
+                        debug_context!("ChannelManager", "Channel {} succeeded", channel_type);
                     }
                 }
+                debug_context!(
+                    "ChannelManager",
+                    "send_notification_async() completed in {:?}",
+                    start.elapsed()
+                );
                 Ok(())
             }
             Err(e) => {
                 eprintln!("Timeout waiting for channels: {}", e);
+                debug_context!("ChannelManager", "Timeout after {:?}", start.elapsed());
                 Ok(()) // Don't fail on timeout
             }
         }
@@ -247,8 +270,12 @@ impl ChannelManager {
         // Deduplicate channels
         let channel_ids = self.router.override_channels(channel_ids);
 
+        // Create template engine with global templates
+        let template_engine = TemplateEngine::new(self.config.global_templates.clone());
+
         // Wrap input in Arc for safe sharing across tasks
         let input = Arc::new(input.clone());
+        let template_engine = Arc::new(template_engine);
 
         let mut tasks = Vec::new();
 
@@ -277,9 +304,12 @@ impl ChannelManager {
                 }
 
                 let input = Arc::clone(&input);
+                let template_engine = Arc::clone(&template_engine);
 
                 tasks.push(tokio::spawn(async move {
-                    let result = channel.send(&input, &channel_config).await;
+                    let result = channel
+                        .send(&input, &channel_config, &template_engine)
+                        .await;
                     (channel_id, result)
                 }));
             }
@@ -316,12 +346,21 @@ impl ChannelManager {
 /// This function displays appropriate notifications based on the hook type
 /// and optionally plays a sound in parallel.
 pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
+    debug_context!("handle_hook", "Received hook: {:?}", input.hook_type);
+    debug_context!("handle_hook", "Session ID: {}", input.common.session_id);
+    debug_context!(
+        "handle_hook",
+        "Transcript path: {:?}",
+        input.common.transcript_path
+    );
+
     // Validate required fields
     if input.common.session_id.is_empty() {
         return Err(NotificationError::MissingField("session_id".to_string()));
     }
 
     // Prepare notification title and body based on hook type
+    debug_context!("handle_hook", "Preparing notification...");
     let (title, body) = match &input.data {
         HookData::Notification(data) => {
             // Enhanced notification handling with notification_type support
@@ -340,15 +379,6 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
             let body = data.tool_name.clone();
             (title, body)
         }
-        HookData::PermissionRequest(data) => {
-            let title = "Claude Code - Permission Request";
-            let body = if let Some(tool_name) = &data.tool_name {
-                format!("Claude requests permission to use {}", tool_name)
-            } else {
-                "Claude requests permission to execute a tool".to_string()
-            };
-            (title, body)
-        }
         HookData::Stop(data) => {
             // Try transcript analysis first
             if let Some(transcript_path) = &input.common.transcript_path {
@@ -361,23 +391,23 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
                     Err(_) => {
                         // Fall back to simple message on analysis error
                         let title = "Claude Code - Stop";
-                        let body = data
-                            .reason
-                            .as_deref()
-                            .unwrap_or("Claude stopped generating")
-                            .to_string();
-                        (title, body)
+                        let body = if data.stop_hook_active.unwrap_or(false) {
+                            "Claude continuing (stop hook active)"
+                        } else {
+                            "Claude stopped generating"
+                        };
+                        (title, body.to_string())
                     }
                 }
             } else {
                 // No transcript path provided
                 let title = "Claude Code - Stop";
-                let body = data
-                    .reason
-                    .as_deref()
-                    .unwrap_or("Claude stopped generating")
-                    .to_string();
-                (title, body)
+                let body = if data.stop_hook_active.unwrap_or(false) {
+                    "Claude continuing (stop hook active)"
+                } else {
+                    "Claude stopped generating"
+                };
+                (title, body.to_string())
             }
         }
         HookData::SubagentStop(data) => {
@@ -392,30 +422,29 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
                     Err(_) => {
                         // Fall back to simple message on analysis error
                         let title = "Claude Code - SubagentStop";
-                        let body = match (&data.subagent_id, &data.reason) {
-                            (Some(id), Some(reason)) => {
-                                format!("Subagent {} stopped: {}", id, reason)
-                            }
-                            (Some(id), None) => format!("Subagent {} stopped", id),
-                            (None, Some(reason)) => format!("Subagent stopped: {}", reason),
-                            (None, None) => "Subagent stopped".to_string(),
+                        let body = if data.stop_hook_active.unwrap_or(false) {
+                            "Subagent continuing (stop hook active)"
+                        } else {
+                            "Subagent stopped"
                         };
-                        (title, body)
+                        (title, body.to_string())
                     }
                 }
             } else {
                 // No transcript path provided
                 let title = "Claude Code - SubagentStop";
-                let body = match (&data.subagent_id, &data.reason) {
-                    (Some(id), Some(reason)) => format!("Subagent {} stopped: {}", id, reason),
-                    (Some(id), None) => format!("Subagent {} stopped", id),
-                    (None, Some(reason)) => format!("Subagent stopped: {}", reason),
-                    (None, None) => "Subagent stopped".to_string(),
+                let body = if data.stop_hook_active.unwrap_or(false) {
+                    "Subagent continuing (stop hook active)"
+                } else {
+                    "Subagent stopped"
                 };
-                (title, body)
+                (title, body.to_string())
             }
         }
     };
+
+    debug_context!("handle_hook", "Title: {}", title);
+    debug_context!("handle_hook", "Body: {}", body);
 
     // Create notification
     let mut notification = Notification::new();
@@ -424,7 +453,9 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
     notification.timeout(Timeout::Milliseconds(5000)); // 5 second timeout
 
     // Display notification
+    debug_log!("Displaying notification...");
     notification.show()?;
+    debug_log!("Notification displayed successfully");
 
     // Play sound if specified
     if let Some(sound_param) = sound {

@@ -85,7 +85,12 @@ impl NotificationChannel for WeChatChannel {
         Ok(())
     }
 
-    async fn send(&self, input: &HookInput, config: &ChannelConfig) -> Result<(), ChannelError> {
+    async fn send(
+        &self,
+        input: &HookInput,
+        config: &ChannelConfig,
+        _template_engine: &TemplateEngine,
+    ) -> Result<(), ChannelError> {
         let url = config
             .webhook_url
             .as_ref()

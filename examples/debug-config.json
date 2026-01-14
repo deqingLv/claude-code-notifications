@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "default_channels": ["system"],
+  "channels": {
+    "system": {
+      "name": "系统通知",
+      "channel_type": "system",
+      "enabled": true,
+      "sound": "Glass",
+      "timeout_ms": 5000,
+      "icon": "Claude Code"
+    }
+  },
+  "routing_rules": [],
+  "global_templates": {
+    "default": {
+      "title": "{{hook_type}}",
+      "body": "{{message}}"
+    },
+    "PreToolUse": {
+      "title": "Tool: {{tool_name}}",
+      "body": "{{context}}"
+    },
+    "Stop": {
+      "title": "Claude Stopped",
+      "body": "{{reason}}"
+    }
+  },
+  "debug": true
+}
