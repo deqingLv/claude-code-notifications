@@ -40,7 +40,7 @@ This program integrates with Claude Code's notification system through the hooks
 
 **Automatic Configuration:**
 ```bash
-# Configure hooks automatically (uses default sound: Hero, configures all hook types)
+# Configure hooks automatically (uses default sound: Hero, configures: Notification, PreToolUse, Stop, PermissionRequest)
 claude-code-notifications init
 
 # Configure with custom sound
@@ -97,6 +97,8 @@ claude-code-notifications init --config /path/to/config.json
 ```
 
 **Multiple Hook Types Configuration:**
+
+Example with all hook types (note: SubagentStop is not installed by default):
 ```json
 {
   "hooks": {
@@ -133,6 +135,17 @@ claude-code-notifications init --config /path/to/config.json
         ]
       }
     ],
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-code-notifications --sound Hero"
+          }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "matcher": "",
@@ -146,6 +159,11 @@ claude-code-notifications init --config /path/to/config.json
     ]
   }
 }
+```
+
+To explicitly configure SubagentStop along with other hooks:
+```bash
+claude-code-notifications init --hook-type notification --hook-type pre-tool-use --hook-type stop --hook-type permission-request --hook-type subagent-stop
 ```
 
 ### Hook Input Schema

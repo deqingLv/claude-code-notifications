@@ -143,6 +143,18 @@ impl TemplateEngine {
                 // Also provide 'reason' variable for backward compatibility with existing templates
                 ctx.insert("reason".to_string(), message);
             }
+            HookData::PermissionRequest(data) => {
+                // For PermissionRequest hooks, extract permission information
+                if let Some(desc) = &data.description {
+                    ctx.insert("message".to_string(), desc.clone());
+                }
+                if let Some(perm_type) = &data.permission_type {
+                    ctx.insert("permission_type".to_string(), perm_type.clone());
+                }
+                if let Some(context) = &data.context {
+                    ctx.insert("context".to_string(), context.clone());
+                }
+            }
         }
 
         ctx

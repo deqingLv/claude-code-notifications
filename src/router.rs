@@ -99,6 +99,15 @@ impl ChannelRouter {
             HookData::PreToolUse(data) => data.tool_name.clone(),
             HookData::Stop(_data) => "Claude stopped".to_string(),
             HookData::SubagentStop(_data) => "Subagent stopped".to_string(),
+            HookData::PermissionRequest(data) => {
+                if let Some(desc) = &data.description {
+                    desc.clone()
+                } else if let Some(perm_type) = &data.permission_type {
+                    format!("Permission request: {}", perm_type)
+                } else {
+                    "Permission request".to_string()
+                }
+            }
         }
     }
 

@@ -17,6 +17,8 @@ pub enum HookType {
     Stop,
     /// Hook invoked when a subagent stops
     SubagentStop,
+    /// Hook invoked when permission is requested
+    PermissionRequest,
 }
 
 /// Common fields present in all hook types
@@ -87,6 +89,20 @@ pub struct SubagentStopData {
     _phantom: std::marker::PhantomData<()>,
 }
 
+/// Data specific to PermissionRequest hooks
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PermissionRequestData {
+    /// Type of permission being requested
+    #[serde(default)]
+    pub permission_type: Option<String>,
+    /// Human-readable description of what permission is for
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Optional context about the permission request
+    #[serde(default)]
+    pub context: Option<String>,
+}
+
 /// Enum representing the type-specific data for each hook type
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
@@ -99,6 +115,8 @@ pub enum HookData {
     Stop(StopData),
     /// SubagentStop-specific data
     SubagentStop(SubagentStopData),
+    /// PermissionRequest-specific data
+    PermissionRequest(PermissionRequestData),
 }
 
 /// Complete hook input structure
@@ -195,6 +213,30 @@ impl HookInput {
                 permission_mode: None,
             },
             data: HookData::SubagentStop(SubagentStopData::default()),
+        }
+    }
+
+    /// Create a PermissionRequest hook input (for testing)
+    pub fn permission_request(
+        session_id: String,
+        transcript_path: Option<String>,
+        permission_type: Option<String>,
+        description: Option<String>,
+        context: Option<String>,
+    ) -> Self {
+        Self {
+            hook_event_name: HookType::PermissionRequest,
+            common: CommonHookFields {
+                session_id,
+                transcript_path,
+                cwd: None,
+                permission_mode: None,
+            },
+            data: HookData::PermissionRequest(PermissionRequestData {
+                permission_type,
+                description,
+                context,
+            }),
         }
     }
 }

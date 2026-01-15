@@ -425,6 +425,18 @@ pub fn handle_hook(input: &HookInput, sound: Option<&str>) -> Result<()> {
                 (title, body.to_string())
             }
         }
+        HookData::PermissionRequest(data) => {
+            // Format permission request notification
+            let title = "Claude Code - Permission Request";
+            let body = if let Some(desc) = &data.description {
+                desc.clone()
+            } else if let Some(perm_type) = &data.permission_type {
+                format!("Permission requested: {}", perm_type)
+            } else {
+                "System requires permission authorization".to_string()
+            };
+            (title, body)
+        }
     };
 
     debug_context!("handle_hook", "Title: {}", title);

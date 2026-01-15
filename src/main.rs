@@ -30,6 +30,7 @@ enum HookType {
     PreToolUse,
     Stop,
     SubagentStop,
+    PermissionRequest,
 }
 
 /// Command-line arguments for claude-code-notifications
@@ -105,7 +106,7 @@ struct InitArgs {
     sound: String,
 
     /// Hook types to configure (can be specified multiple times)
-    #[arg(long, value_enum, default_values_t = vec![HookType::Notification, HookType::PreToolUse, HookType::Stop, HookType::SubagentStop])]
+    #[arg(long, value_enum, default_values_t = vec![HookType::Notification, HookType::PreToolUse, HookType::Stop, HookType::PermissionRequest])]
     hook_type: Vec<HookType>,
 
     /// Matcher pattern for PreToolUse hooks (default: "ExitPlanMode|AskUserQuestion")
@@ -262,6 +263,7 @@ fn init_command(args: InitArgs) -> Result<(), NotificationError> {
             HookType::PreToolUse => "PreToolUse",
             HookType::Stop => "Stop",
             HookType::SubagentStop => "SubagentStop",
+            HookType::PermissionRequest => "PermissionRequest",
         };
 
         // Check if hook already exists
