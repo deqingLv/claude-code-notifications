@@ -106,7 +106,7 @@ struct InitArgs {
     sound: String,
 
     /// Hook types to configure (can be specified multiple times)
-    #[arg(long, value_enum, default_values_t = vec![HookType::Notification, HookType::PreToolUse, HookType::Stop, HookType::PermissionRequest])]
+    #[arg(long, value_enum, default_values_t = vec![HookType::Notification, HookType::PreToolUse, HookType::Stop])]
     hook_type: Vec<HookType>,
 
     /// Matcher pattern for PreToolUse hooks (default: "ExitPlanMode|AskUserQuestion")

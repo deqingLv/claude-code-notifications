@@ -40,7 +40,7 @@ This program integrates with Claude Code's notification system through the hooks
 
 **Automatic Configuration:**
 ```bash
-# Configure hooks automatically (uses default sound: Hero, configures: Notification, PreToolUse, Stop, PermissionRequest)
+# Configure hooks automatically (uses default sound: Hero, configures: Notification, PreToolUse, Stop)
 claude-code-notifications init
 
 # Configure with custom sound
@@ -98,7 +98,7 @@ claude-code-notifications init --config /path/to/config.json
 
 **Multiple Hook Types Configuration:**
 
-Example with all hook types (note: SubagentStop is not installed by default):
+Example with recommended hooks (Notification hook handles permission prompts via matcher):
 ```json
 {
   "hooks": {
@@ -135,17 +135,6 @@ Example with all hook types (note: SubagentStop is not installed by default):
         ]
       }
     ],
-    "PermissionRequest": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-code-notifications --sound Hero"
-          }
-        ]
-      }
-    ],
     "SubagentStop": [
       {
         "matcher": "",
@@ -161,9 +150,13 @@ Example with all hook types (note: SubagentStop is not installed by default):
 }
 ```
 
-To explicitly configure SubagentStop along with other hooks:
+Note: PermissionRequest hook is not installed by default. Permission prompts are handled through the Notification hook with the `permission_prompt` notification type. To explicitly configure additional hooks:
 ```bash
-claude-code-notifications init --hook-type notification --hook-type pre-tool-use --hook-type stop --hook-type permission-request --hook-type subagent-stop
+# Add SubagentStop
+claude-code-notifications init --hook-type notification --hook-type pre-tool-use --hook-type stop --hook-type subagent-stop
+
+# Add PermissionRequest (not recommended - use Notification with matcher instead)
+claude-code-notifications init --hook-type notification --hook-type pre-tool-use --hook-type stop --hook-type permission-request
 ```
 
 ### Hook Input Schema
